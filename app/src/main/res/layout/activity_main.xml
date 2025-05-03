@@ -7,7 +7,6 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- Компонент для отображения предпросмотра камеры -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -16,9 +15,10 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:scaleType="fillCenter" /> <!-- Можете изменить scaleType по желанию -->
+        app:scaleType="fillCenter" />
 
-    <!-- Кнопка для переключения камеры -->
+    <!-- УДАЛЕНО: Кнопка для переключения камеры -->
+    <!--
     <Button
         android:id="@+id/switch_camera_button"
         android:layout_width="wrap_content"
@@ -28,8 +28,8 @@
         android:text="Переключить"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+    -->
 
-    <!-- Ползунок для управления зумом -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"

@@ -20,14 +20,13 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.Button;
+// УДАЛЕНО: import android.widget.Button; - больше не нужен
 import android.widget.Toast;
 
-import com.google.common.util.concurrent.ListenableFuture; // Нужна зависимость guava, если ее нет
-// Если нет guava, Gradle может предложить ее добавить при синхронизации,
-// или добавьте вручную: implementation "com.google.guava:guava:31.1-android" (или новее)
+import com.google.common.util.concurrent.ListenableFuture;
+// import com.google.guava:guava:31.1-android (или новее), если еще не добавлено
 
-import com.google.android.material.slider.Slider; // Импорт для Slider
+import com.google.android.material.slider.Slider;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -36,18 +35,16 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraPreview";
     private PreviewView previewView;
-    private Button switchCameraButton;
+    // УДАЛЕНО: private Button switchCameraButton;
     private Slider zoomSlider;
 
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private ProcessCameraProvider cameraProvider;
-    private Camera camera; // Текущий активный объект камеры
+    private Camera camera;
     private Preview previewUseCase;
 
-    // Изначально выбираем заднюю камеру
-    private int lensFacing = CameraSelector.LENS_FACING_BACK;
+    // УДАЛЕНО: private int lensFacing = CameraSelector.LENS_FACING_BACK;
 
-    // ActivityResultLauncher для запроса разрешений
     private final ActivityResultLauncher<String[]> activityResultLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), new ActivityResultCallback<Map<String, Boolean>>() {
                 @Override
@@ -58,13 +55,12 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     if (allPermissionsGranted) {
-                        startCamera(); // Запускаем камеру, если разрешение получено
+                        startCamera();
                         Log.d(TAG, "Permissions granted by the user.");
                     } else {
                         Log.d(TAG, "Permissions not granted by the user.");
                         Toast.makeText(MainActivity.this, "Разрешения не предоставлены", Toast.LENGTH_SHORT).show();
-                        // Можно добавить логику, что делать, если разрешения не дали
-                        // finish(); // Например, закрыть приложение
+                        // finish();
                     }
                 }
             });
@@ -76,37 +72,34 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         previewView = findViewById(R.id.previewView);
-        switchCameraButton = findViewById(R.id.switch_camera_button);
+        // УДАЛЕНО: switchCameraButton = findViewById(R.id.switch_camera_button);
         zoomSlider = findViewById(R.id.zoom_slider);
 
-        // Проверяем и запрашиваем разрешения
         if (allPermissionsGranted()) {
-            startCamera(); // Начинаем работу с камерой, если разрешения уже есть
+            startCamera();
         } else {
-            requestPermissions(); // Запрашиваем разрешения
+            requestPermissions();
         }
 
-        // Обработчик нажатия на кнопку переключения камеры
+        // УДАЛЕНО: Обработчик нажатия на кнопку переключения камеры
+        /*
         switchCameraButton.setOnClickListener(v -> {
             switchCamera();
         });
+        */
 
-        // Обработчик изменения значения ползунка зума (инициализируется после привязки камеры)
-        setupZoomSliderListener(); // Настраиваем слушатель заранее
+        setupZoomSliderListener();
 
     }
 
-    // Проверка наличия необходимых разрешений
     private boolean allPermissionsGranted() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
-    // Запрос разрешений
     private void requestPermissions() {
         activityResultLauncher.launch(new String[]{Manifest.permission.CAMERA});
     }
 
-    // Запуск и привязка камеры к жизненному циклу и PreviewView
     private void startCamera() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraProviderFuture.addListener(() -> {
@@ -120,32 +113,25 @@ public class MainActivity extends AppCompatActivity {
         }, ContextCompat.getMainExecutor(this));
     }
 
-    // Привязка UseCase предпросмотра
     private void bindPreviewUseCase() {
         if (cameraProvider == null) {
             Log.e(TAG, "CameraProvider не инициализирован.");
             return;
         }
 
-        // Отвязываем предыдущие use cases перед привязкой новых
         cameraProvider.unbindAll();
 
-        // Создание CameraSelector на основе текущего lensFacing
-        // Вот здесь происходит "программно-аппаратный анализ": CameraX подбирает
-        // подходящую камеру по указанному критерию (LENS_FACING_BACK или LENS_FACING_FRONT)
+        // ИЗМЕНЕНО: Всегда используем основную заднюю камеру
         CameraSelector cameraSelector = new CameraSelector.Builder()
-                .requireLensFacing(lensFacing)
+                .requireLensFacing(CameraSelector.LENS_FACING_BACK) // Фиксируем заднюю камеру
                 .build();
 
-        // Настройка Preview UseCase
         previewUseCase = new Preview.Builder().build();
         previewUseCase.setSurfaceProvider(previewView.getSurfaceProvider());
 
         try {
-            // Привязываем CameraSelector и Preview UseCase к жизненному циклу Activity
             camera = cameraProvider.bindToLifecycle(this, cameraSelector, previewUseCase);
 
-            // Настраиваем ползунок зума после успешной привязки камеры
             if (camera != null) {
                 setupZoomSliderState(camera.getCameraInfo(), camera.getCameraControl());
             } else {
@@ -154,60 +140,55 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             Log.e(TAG, "Ошибка при привязке UseCase Preview: ", e);
-            Toast.makeText(this, "Не удалось привязать камеру", Toast.LENGTH_SHORT).show();
-            // Возможно, камера с нужным lensFacing не найдена
+             // Эта ошибка может возникнуть, если на устройстве ВООБЩЕ нет задней камеры, что маловероятно
+            Toast.makeText(this, "Не удалось привязать заднюю камеру", Toast.LENGTH_SHORT).show();
         }
     }
 
-    // Переключение между фронтальной и задней камерами
+    // УДАЛЕНО: Метод switchCamera() больше не нужен
+    /*
     private void switchCamera() {
         if (lensFacing == CameraSelector.LENS_FACING_BACK) {
             lensFacing = CameraSelector.LENS_FACING_FRONT;
         } else {
             lensFacing = CameraSelector.LENS_FACING_BACK;
         }
-        // Перепривязываем use cases с новым селектором
         bindPreviewUseCase();
     }
+    */
 
-    // Настройка состояния и пределов ползунка зума
     private void setupZoomSliderState(CameraInfo cameraInfo, CameraControl cameraControl) {
         LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState();
-        ZoomState zoomState = zoomStateLiveData.getValue(); // Получаем текущее состояние
+        ZoomState zoomState = zoomStateLiveData.getValue();
 
         if (zoomState == null) {
             Log.w(TAG, "Не удалось получить ZoomState");
-            zoomSlider.setEnabled(false); // Отключаем слайдер, если зум не поддерживается
+            zoomSlider.setEnabled(false);
             return;
         }
 
-        // Получаем минимальный и максимальный линейный зум (от 0.0 до 1.0)
-        float minZoom = 0f; // Линейный зум всегда от 0
-        float maxZoom = 1f; // Линейный зум всегда до 1
+        float minZoom = 0f;
+        float maxZoom = 1f;
 
         zoomSlider.setValueFrom(minZoom);
         zoomSlider.setValueTo(maxZoom);
-        zoomSlider.setStepSize(0.01f); // Более мелкий шаг для плавности
+        zoomSlider.setStepSize(0.01f);
 
-        // Устанавливаем текущее значение ползунка
         zoomSlider.setValue(zoomState.getLinearZoom());
-        zoomSlider.setEnabled(true); // Включаем слайдер
+        zoomSlider.setEnabled(true);
         Log.d(TAG, "Zoom настроен: MinLinear=" + minZoom + ", MaxLinear=" + maxZoom + ", CurrentLinear=" + zoomState.getLinearZoom());
 
     }
 
-    // Настройка слушателя изменений ползунка зума
     private void setupZoomSliderListener() {
          zoomSlider.addOnChangeListener(new Slider.OnChangeListener() {
             @Override
             public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
                 if (camera != null && fromUser) {
-                    // Используем setLinearZoom для более интуитивного управления через слайдер 0-1
                     ListenableFuture<Void> future = camera.getCameraControl().setLinearZoom(value);
                     future.addListener(() -> {
                         try {
-                             future.get(); // Просто проверяем на исключения
-                             // Log.v(TAG, "Linear Zoom set to: " + value); // Для отладки
+                             future.get();
                         } catch (Exception e) {
                              Log.e(TAG, "Error setting linear zoom", e);
                         }
@@ -217,7 +198,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // Не забываем отвязывать камеру при уничтожении Activity (хотя bindToLifecycle часто справляется сам)
     @Override
     protected void onDestroy() {
         super.onDestroy();
