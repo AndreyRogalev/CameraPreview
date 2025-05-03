@@ -1,6 +1,5 @@
 // --- Полный путь к файлу ---
 // /root/CameraPreview/app/src/main/java/com/example/camerapreview/MainActivity.java
-// (Замените /root/ на актуальный путь к вашей домашней директории в Termux/Ubuntu, если он отличается)
 // --- Начало кода файла ---
 package com.example.camerapreview;
 
@@ -65,7 +64,6 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         Log.d(TAG, "Permissions not granted by the user.");
                         Toast.makeText(MainActivity.this, "Разрешения не предоставлены", Toast.LENGTH_SHORT).show();
-                        // Можно закрыть приложение, если камера критична
                         // finish();
                     }
                 }
@@ -75,15 +73,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // --- ИЗМЕНЕНО ЗДЕСЬ ---
-        // Сначала устанавливаем макет
         setContentView(R.layout.activity_main);
-        // Затем скрываем системные панели
-        hideSystemUI();
-        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
+        // Находим View сразу после setContentView
         previewView = findViewById(R.id.previewView);
         zoomSlider = findViewById(R.id.zoom_slider);
+
+        // --- ИЗМЕНЕНО ЗДЕСЬ ---
+        // Откладываем вызов hideSystemUI, используя post() на существующем View
+        // Это выполнит код после того, как View будет прикреплен к окну и пройдет первый этап layout
+        previewView.post(new Runnable() {
+            @Override
+            public void run() {
+                hideSystemUI();
+            }
+        });
+        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
 
         // Проверяем и запрашиваем разрешения
         if (allPermissionsGranted()) {
@@ -104,10 +110,21 @@ public class MainActivity extends AppCompatActivity {
             if (controller != null) {
                 controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
                 controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            } else {
+                 Log.w(TAG, "WindowInsetsController is null even after posting hideSystemUI");
+                 // Как запасной вариант, можно попробовать старый метод, если новый недоступен
+                 hideSystemUIOldApi();
             }
         } else {
             // Для старых версий Android (ниже API 30)
-            View decorView = getWindow().getDecorView();
+            hideSystemUIOldApi();
+        }
+    }
+
+    // Вынесли старый метод в отдельную функцию для чистоты
+    private void hideSystemUIOldApi() {
+        View decorView = getWindow().getDecorView();
+         if (decorView != null) { // Добавим проверку на null и здесь на всякий случай
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -115,15 +132,20 @@ public class MainActivity extends AppCompatActivity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_FULLSCREEN);
-        }
+         } else {
+            Log.w(TAG, "DecorView is null when trying old API");
+         }
     }
 
-    // Для большей надежности скрытия на старых API
+
+    // Для большей надежности скрытия на старых API (и теперь как fallback для новых)
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            hideSystemUI();
+            // Повторно вызываем hideSystemUI, чтобы убедиться, что панели скрыты
+            // особенно если пользователь вызвал их свайпом
+             hideSystemUI();
         }
     }
 
@@ -248,8 +270,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (cameraProvider != null) {
-            // CameraX обычно сам корректно отвязывает при уничтожении Activity,
-            // связанной через bindToLifecycle, но явный unbind не повредит.
             cameraProvider.unbindAll();
         }
     }
