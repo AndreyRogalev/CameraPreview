@@ -7,5 +7,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "android-hello-world-app"
+rootProject.name = "CameraPreview"
 include ':app'
