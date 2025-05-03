@@ -1,0 +1,57 @@
+name: Android CI Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Важно: Запуск на x86-64 сервере GitHub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+         # cache: gradle
+
+      # Настройка Android SDK на сервере GitHub
+      - name: Setup Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk
+          export ANDROID_HOME=$HOME/android-sdk
+          # Скачиваем свежие Command-line tools
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          echo "y" | sdkmanager --licenses > /dev/null || true # Принимаем лицензии
+          # Устанавливаем платформу и Build Tools (версии, которые работают на x86-64)
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        shell: bash
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        shell: bash
+
+      # ДОБАВЛЕН НОВЫЙ ШАГ ОЧИСТКИ:
+      - name: Clean Gradle project
+        run: ./gradlew clean
+
+
+      # Запуск сборки Debug APK
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+        shell: bash
+
+      # Загрузка APK как артефакта
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
