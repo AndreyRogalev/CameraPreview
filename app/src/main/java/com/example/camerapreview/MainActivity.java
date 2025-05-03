@@ -192,16 +192,19 @@ public class MainActivity extends AppCompatActivity {
         LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState();
         ZoomState zoomState = zoomStateLiveData.getValue(); // Получаем текущее состояние
 
-        if (zoomState == null || !cameraInfo.isZoomSupported()) { // Проверяем поддержку зума
+        // ----- ИЗМЕНЕНО ЗДЕСЬ -----
+        // Просто проверяем, доступно ли состояние зума
+        if (zoomState == null) {
             Log.w(TAG, "Зум не поддерживается или не удалось получить ZoomState");
             zoomSlider.setValue(0f); // Сбросить значение на всякий случай
-            zoomSlider.setEnabled(false); // Отключаем слайдер, если зум не поддерживается
+            zoomSlider.setEnabled(false); // Отключаем слайдер
             return;
         }
+        // ----- КОНЕЦ ИЗМЕНЕНИЯ -----
 
-        // Получаем минимальный и максимальный линейный зум (от 0.0 до 1.0)
-        float minZoom = zoomState.getMinZoomRatio(); // Хотя линейный зум от 0, можно получить реальный min ratio
-        float maxZoom = zoomState.getMaxZoomRatio(); // Реальный max ratio
+        // Получаем реальные минимальный и максимальный коэффициенты зума
+        float minZoom = zoomState.getMinZoomRatio();
+        float maxZoom = zoomState.getMaxZoomRatio();
 
         Log.d(TAG, "Zoom Ratio Range: " + minZoom + " - " + maxZoom);
 
