@@ -75,9 +75,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Скрываем системные панели для полноэкранного режима
-        hideSystemUI();
+        // --- ИЗМЕНЕНО ЗДЕСЬ ---
+        // Сначала устанавливаем макет
         setContentView(R.layout.activity_main);
+        // Затем скрываем системные панели
+        hideSystemUI();
+        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
         previewView = findViewById(R.id.previewView);
         zoomSlider = findViewById(R.id.zoom_slider);
@@ -192,7 +195,6 @@ public class MainActivity extends AppCompatActivity {
         LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState();
         ZoomState zoomState = zoomStateLiveData.getValue(); // Получаем текущее состояние
 
-        // ----- ИЗМЕНЕНО ЗДЕСЬ -----
         // Просто проверяем, доступно ли состояние зума
         if (zoomState == null) {
             Log.w(TAG, "Зум не поддерживается или не удалось получить ZoomState");
@@ -200,7 +202,6 @@ public class MainActivity extends AppCompatActivity {
             zoomSlider.setEnabled(false); // Отключаем слайдер
             return;
         }
-        // ----- КОНЕЦ ИЗМЕНЕНИЯ -----
 
         // Получаем реальные минимальный и максимальный коэффициенты зума
         float minZoom = zoomState.getMinZoomRatio();
