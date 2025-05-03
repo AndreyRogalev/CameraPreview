@@ -1,0 +1,23 @@
+# Build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+build/
+/*/build/
+
+# Local configuration files (do not commit)
+local.properties
+.idea/workspace.xml
+.idea/libraries/
+.gradle/
+captures/
+*.log
+
+# Keystore files (!!!NEVER COMMIT!!!)
+*.jks
+*.keystore
+
+# Your temporary/generated files
+project_files.txt
+project_files_no_git.txt
