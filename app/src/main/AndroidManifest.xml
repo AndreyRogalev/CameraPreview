@@ -11,7 +11,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CameraPreview">
+        android:theme="@style/Theme.CameraPreview"
+	tools:targetApi="31">
 
         <!-- Замените MainActivity на вашу главную Activity -->
         <activity
