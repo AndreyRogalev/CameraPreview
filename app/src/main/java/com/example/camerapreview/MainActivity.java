@@ -30,6 +30,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.CheckBox; // Импорт CheckBox
+import android.widget.CompoundButton; // <<< Добавлен импорт для слушателя
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -126,7 +127,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupTransparencySliderListener();
         setupPencilModeSwitchListener();
         setupLayerSelectButtonListener();
-        setupControlsVisibilityListener(); // <<< Настраиваем слушатель CheckBox
+        setupControlsVisibilityListener();
 
         // Скрытие UI
         previewView.post(this::hideSystemUI);
@@ -139,10 +140,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         transparencySlider.setVisibility(View.GONE);
         transparencySlider.setEnabled(false);
         layerSelectButton.setVisibility(View.GONE);
-        // Устанавливаем начальную видимость группы и текст чекбокса
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
-        controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? R.string.controls_label : ""); // Используем ресурс строки
+        // <<< ИСПРАВЛЕНО ЗДЕСЬ (1) >>>
+        controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : ""); // Используем getString()
 
 
         Log.d(TAG, "onCreate: Setup complete");
@@ -161,13 +162,16 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void setupPencilModeSwitchListener() { pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> { Log.i(TAG, "Pencil Mode Switch changed: " + isChecked); isPencilMode = isChecked; layerSelectButton.setVisibility(isChecked ? View.VISIBLE : View.GONE); if (isChecked) { if (grayscaleBitmap == null && originalBitmap != null) { createGrayscaleBitmap(); } } else { recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; } updateImageDisplay(); }); }
     private void setupLayerSelectButtonListener() { layerSelectButton.setOnClickListener(v -> { Log.d(TAG, "Layer select button clicked"); showLayerSelectionDialog(); }); }
 
-    // <<< Изменен слушатель CheckBox видимости контролов >>>
     private void setupControlsVisibilityListener() {
-        controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
-            controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-            // Устанавливаем текст в зависимости от состояния
-            buttonView.setText(isChecked ? R.string.controls_label : ""); // Используем строковый ресурс
+        controlsVisibilityCheckbox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
+                controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                // <<< ИСПРАВЛЕНО ЗДЕСЬ (2) >>>
+                // Устанавливаем текст чекбокса в зависимости от состояния
+                controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : ""); // Используем getString()
+            }
         });
     }
 
@@ -178,37 +182,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void updateImageDisplay() { /* ... код как в пред. ответе ... */ if (overlayImageView == null) return; if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay."); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); recycleAllBitmaps(); return; } Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode); recycleBitmap(finalCompositeBitmap); Bitmap bitmapToShow; if (isPencilMode) { finalCompositeBitmap = createCompositeGrayscaleBitmap(); bitmapToShow = finalCompositeBitmap; if (bitmapToShow == null) { Log.w(TAG,"Composite bitmap creation failed, showing original as fallback."); bitmapToShow = originalBitmap; } } else { bitmapToShow = originalBitmap; } if (bitmapToShow != null && !bitmapToShow.isRecycled()) { overlayImageView.setImageBitmap(bitmapToShow); overlayImageView.setImageMatrix(matrix); overlayImageView.setVisibility(View.VISIBLE); Log.d(TAG, "Bitmap set to overlayImageView."); } else { Log.w(TAG, "bitmapToShow is null or recycled. Hiding overlay."); overlayImageView.setImageBitmap(null); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } }
 
     // --- Диалог выбора слоев ---
-    private void showLayerSelectionDialog() {
-        Log.d(TAG, "Showing layer selection dialog.");
-        if (PENCIL_HARDNESS == null || layerVisibility == null) { Log.e(TAG, "Layer data is null."); return; }
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        // УБРАН ЗАГОЛОВОК ДИАЛОГА: builder.setTitle(...)
-
-        LayoutInflater inflater = this.getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.dialog_layer_select, null);
-        builder.setView(dialogView);
-        RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView);
-        if (recyclerView == null) { Log.e(TAG, "RecyclerView not found!"); Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show(); return; }
-
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this);
-        recyclerView.setAdapter(adapter);
-
-        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
-        builder.setNeutralButton("Все", (dialog, which) -> { Arrays.fill(layerVisibility, true); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); });
-        builder.setNegativeButton("Ничего", (dialog, which) -> { Arrays.fill(layerVisibility, false); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); });
-
-        AlertDialog dialog = builder.create();
-        dialog.show();
-    }
+    private void showLayerSelectionDialog() { /* ... код как в пред. ответе, без setTitle ... */ Log.d(TAG, "Showing layer selection dialog."); if (PENCIL_HARDNESS == null || layerVisibility == null) { Log.e(TAG, "Layer data is null."); return; } AlertDialog.Builder builder = new AlertDialog.Builder(this); LayoutInflater inflater = this.getLayoutInflater(); View dialogView = inflater.inflate(R.layout.dialog_layer_select, null); builder.setView(dialogView); RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView); if (recyclerView == null) { Log.e(TAG, "RecyclerView not found!"); Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show(); return; } recyclerView.setLayoutManager(new LinearLayoutManager(this)); final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this); recyclerView.setAdapter(adapter); builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss()); builder.setNeutralButton("Все", (dialog, which) -> { Arrays.fill(layerVisibility, true); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); builder.setNegativeButton("Ничего", (dialog, which) -> { Arrays.fill(layerVisibility, false); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); AlertDialog dialog = builder.create(); dialog.show(); }
 
     // Обратный вызов от Адаптера
     @Override
-    public void onLayerVisibilityChanged(int position, boolean isVisible) {
-        Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible);
-        updateImageDisplay();
-    }
+    public void onLayerVisibilityChanged(int position, boolean isVisible) { /* ... код как в пред. ответе ... */ Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible); updateImageDisplay(); }
 
     // --- Управление памятью ---
     private void recycleBitmap(Bitmap bitmap) { if (bitmap != null && !bitmap.isRecycled()) { bitmap.recycle(); } }
@@ -219,8 +197,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     // --- Остальной код ---
     @Override protected void onDestroy() { super.onDestroy(); Log.d(TAG, "onDestroy called"); recycleAllBitmaps(); if (cameraProvider != null) { cameraProvider.unbindAll(); } }
-    private void hideSystemUI() { /* ... код как в пред. ответе ... */ Log.v(TAG, "Attempting to hide system UI"); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { final WindowInsetsController controller = getWindow().getInsetsController(); if (controller != null) { controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars()); controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE); } else { Log.w(TAG, "WindowInsetsController is null"); hideSystemUIOldApi(); } } else { hideSystemUIOldApi(); } }
-    private void hideSystemUIOldApi() { /* ... код как в пред. ответе ... */ Log.v(TAG, "Using old API to hide system UI"); View decorView = getWindow().getDecorView(); if (decorView != null) { decorView.setSystemUiVisibility( View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN); } else { Log.w(TAG, "DecorView is null"); } }
+    private void hideSystemUI() { /* ... */ Log.v(TAG, "Attempting to hide system UI"); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { final WindowInsetsController controller = getWindow().getInsetsController(); if (controller != null) { controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars()); controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE); } else { Log.w(TAG, "WindowInsetsController is null"); hideSystemUIOldApi(); } } else { hideSystemUIOldApi(); } }
+    private void hideSystemUIOldApi() { /* ... */ Log.v(TAG, "Using old API to hide system UI"); View decorView = getWindow().getDecorView(); if (decorView != null) { decorView.setSystemUiVisibility( View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN); } else { Log.w(TAG, "DecorView is null"); } }
     @Override public void onWindowFocusChanged(boolean hasFocus) { super.onWindowFocusChanged(hasFocus); if (hasFocus) { hideSystemUI(); } }
     private boolean allPermissionsGranted() { return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED; }
     private void requestPermissions() { requestPermissionLauncher.launch(new String[]{Manifest.permission.CAMERA}); }
