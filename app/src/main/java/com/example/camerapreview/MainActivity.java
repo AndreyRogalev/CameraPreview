@@ -74,18 +74,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final int GRAY_LEVELS = PENCIL_HARDNESS.length;
     private static final float GRAY_RANGE_SIZE = 256.0f / GRAY_LEVELS;
     private static final int NONE = 0; private static final int DRAG = 1; private static final int ZOOM = 2;
+    private static final float MIN_ZOOM_RATIO_FOR_LINK = 1.01f; // Минимальный зум камеры для расчета пропорции
 
     // --- UI Элементы ---
-    private PreviewView previewView;
-    private Slider zoomSlider;
-    private Button loadImageButton;
-    private ImageView overlayImageView;
-    private Slider transparencySlider;
-    private SwitchCompat pencilModeSwitch;
-    private Button layerSelectButton;
-    private Group controlsGroup;
-    private CheckBox controlsVisibilityCheckbox;
-    private SwitchCompat linkZoomSwitch; // <<< Новый Switch
+    private PreviewView previewView; private Slider zoomSlider; private Button loadImageButton; private ImageView overlayImageView; private Slider transparencySlider; private SwitchCompat pencilModeSwitch; private Button layerSelectButton; private Group controlsGroup; private CheckBox controlsVisibilityCheckbox; private SwitchCompat linkZoomSwitch;
 
     // --- CameraX ---
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture; private ProcessCameraProvider cameraProvider; private Camera camera; private Preview previewUseCase;
@@ -97,12 +89,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private boolean isPencilMode = false; private boolean[] layerVisibility; private Bitmap originalBitmap = null; private Bitmap grayscaleBitmap = null; private Bitmap finalCompositeBitmap = null;
 
     // --- Связка зума ---
-    private boolean isZoomLinked = false;          // Флаг состояния связки
-    private float initialCameraLinearZoom = 0f; // Зум камеры в момент включения связки
-    private float initialImageScale = 1f;       // Масштаб картинки в момент включения связки
+    private boolean isZoomLinked = false;
+    private float initialCameraZoomRatio = 1f; // <<< ИЗМЕНЕНО: Храним реальный Zoom Ratio
+    private float initialImageScale = 1f;
 
     // --- ActivityResult Launchers ---
-    private final ActivityResultLauncher<String[]> requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> { boolean allPermissionsGranted = true; for (Boolean granted : result.values()) { if (granted != null) { allPermissionsGranted &= granted; } else { allPermissionsGranted = false; } } if (allPermissionsGranted) { Log.i(TAG, "Camera permission granted."); startCamera(); } else { Log.w(TAG, "Camera permission not granted."); Toast.makeText(this, "Разрешение на камеру не предоставлено", Toast.LENGTH_SHORT).show(); } });
+    private final ActivityResultLauncher<String[]> requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> { /* ... */ boolean allPermissionsGranted = true; for (Boolean granted : result.values()) { if (granted != null) { allPermissionsGranted &= granted; } else { allPermissionsGranted = false; } } if (allPermissionsGranted) { Log.i(TAG, "Camera permission granted."); startCamera(); } else { Log.w(TAG, "Camera permission not granted."); Toast.makeText(this, "Разрешение на камеру не предоставлено", Toast.LENGTH_SHORT).show(); } });
     private final ActivityResultLauncher<String> pickImageLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> { if (uri != null) { Log.i(TAG, "Image URI selected: " + uri); recycleAllBitmaps(); loadOriginalBitmap(uri); } else { Log.i(TAG, "No image selected by user."); } });
 
     // --- onCreate ---
@@ -114,13 +106,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         Log.d(TAG, "onCreate: Activity starting");
 
         // --- Инициализация UI ---
-        previewView = findViewById(R.id.previewView); zoomSlider = findViewById(R.id.zoom_slider); loadImageButton = findViewById(R.id.load_image_button); overlayImageView = findViewById(R.id.overlayImageView); transparencySlider = findViewById(R.id.transparency_slider); pencilModeSwitch = findViewById(R.id.pencilModeSwitch); layerSelectButton = findViewById(R.id.layerSelectButton); controlsGroup = findViewById(R.id.controlsGroup); controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox);
-        linkZoomSwitch = findViewById(R.id.linkZoomSwitch); // <<< Находим новый Switch
-
-        // Проверка View
-        if (previewView == null || zoomSlider == null || loadImageButton == null || overlayImageView == null || transparencySlider == null || pencilModeSwitch == null || layerSelectButton == null || controlsGroup == null || controlsVisibilityCheckbox == null || linkZoomSwitch == null) { // <<< Добавлена проверка linkZoomSwitch
-            Log.e(TAG, "onCreate: One or more views not found!"); Toast.makeText(this, "Критическая ошибка: Не найдены элементы интерфейса", Toast.LENGTH_LONG).show(); finish(); return;
-        } else { Log.d(TAG, "onCreate: All views found"); }
+        previewView = findViewById(R.id.previewView); zoomSlider = findViewById(R.id.zoom_slider); loadImageButton = findViewById(R.id.load_image_button); overlayImageView = findViewById(R.id.overlayImageView); transparencySlider = findViewById(R.id.transparency_slider); pencilModeSwitch = findViewById(R.id.pencilModeSwitch); layerSelectButton = findViewById(R.id.layerSelectButton); controlsGroup = findViewById(R.id.controlsGroup); controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox); linkZoomSwitch = findViewById(R.id.linkZoomSwitch);
+        if (previewView == null || zoomSlider == null || loadImageButton == null || overlayImageView == null || transparencySlider == null || pencilModeSwitch == null || layerSelectButton == null || controlsGroup == null || controlsVisibilityCheckbox == null || linkZoomSwitch == null) { Log.e(TAG, "onCreate: One or more views not found!"); Toast.makeText(this, "Критическая ошибка: Не найдены элементы интерфейса", Toast.LENGTH_LONG).show(); finish(); return; } else { Log.d(TAG, "onCreate: All views found"); }
 
         // --- Инициализация состояния ---
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleListener());
@@ -136,7 +123,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupPencilModeSwitchListener();
         setupLayerSelectButtonListener();
         setupControlsVisibilityListener();
-        setupLinkZoomSwitchListener(); // <<< Настраиваем слушатель нового Switch
+        setupLinkZoomSwitchListener();
 
         // Скрытие UI
         previewView.post(this::hideSystemUI);
@@ -147,12 +134,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         // Начальное состояние UI
         overlayImageView.setVisibility(View.GONE);
         transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false);
-        linkZoomSwitch.setEnabled(false); // <<< Неактивен, пока нет картинки
+        linkZoomSwitch.setEnabled(false);
         updateLayerButtonVisibility();
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
         controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : "");
-
 
         Log.d(TAG, "onCreate: Setup complete");
     }
@@ -164,29 +150,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (v.getId() != R.id.overlayImageView) return false;
 
         ImageView view = (ImageView) v;
-        scaleGestureDetector.onTouchEvent(event); // Масштаб через детектор
+        scaleGestureDetector.onTouchEvent(event);
 
         PointF curr = new PointF(event.getX(), event.getY());
 
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_DOWN:
-                savedMatrix.set(matrix);
-                start.set(curr);
-                mode = DRAG;
-                break;
-            case MotionEvent.ACTION_POINTER_DOWN:
-                oldDist = spacing(event);
-                oldAngle = rotation(event);
-                if (oldDist > 10f) {
-                    savedMatrix.set(matrix);
-                    midPoint(mid, event);
-                    mode = ZOOM;
-                }
-                break;
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_POINTER_UP:
-                mode = NONE;
-                break;
+            case MotionEvent.ACTION_DOWN: savedMatrix.set(matrix); start.set(curr); mode = DRAG; break;
+            case MotionEvent.ACTION_POINTER_DOWN: oldDist = spacing(event); oldAngle = rotation(event); if (oldDist > 10f) { savedMatrix.set(matrix); midPoint(mid, event); mode = ZOOM; } break;
+            case MotionEvent.ACTION_UP: case MotionEvent.ACTION_POINTER_UP: mode = NONE; break;
             case MotionEvent.ACTION_MOVE:
                 if (mode == DRAG) {
                     matrix.set(savedMatrix);
@@ -196,16 +167,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                     float newAngle = rotation(event);
                     if (newDist > 10f) {
                         matrix.set(savedMatrix);
-                        // Масштаб
                         float scale = newDist / oldDist;
                         matrix.postScale(scale, scale, mid.x, mid.y);
-                        // Вращение
                         float deltaAngle = newAngle - oldAngle;
                         matrix.postRotate(deltaAngle, mid.x, mid.y);
-
-                        // <<< Если зум связан, обновляем базовые значения после ручного жеста >>>
+                        // <<< Если зум связан, обновляем базу после ручного жеста >>>
                         if (isZoomLinked) {
                             updateZoomLinkBaseline();
+                            Log.d(TAG, "Manual image zoom updated zoom link baseline.");
                         }
                     }
                 }
@@ -227,58 +196,53 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void setupLayerSelectButtonListener() { /* ... */ layerSelectButton.setOnClickListener(v -> { Log.d(TAG, "Layer select button clicked"); showLayerSelectionDialog(); }); }
     private void setupControlsVisibilityListener() { /* ... */ controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> { Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked); controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE); controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : ""); }); }
 
-    // <<< НОВЫЙ Слушатель для Switch связки зума >>>
     private void setupLinkZoomSwitchListener() {
         linkZoomSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             isZoomLinked = isChecked;
             if (isChecked) {
-                // Сохраняем текущее состояние при включении
-                updateZoomLinkBaseline();
-                Log.i(TAG, "Zoom Link ENABLED. Initial Cam Zoom: " + initialCameraLinearZoom + ", Initial Img Scale: " + initialImageScale);
+                updateZoomLinkBaseline(); // Захватываем текущие значения при включении
             } else {
                 Log.i(TAG, "Zoom Link DISABLED.");
-                // Сбрасывать initial значения не обязательно
             }
         });
     }
 
-    // <<< НОВЫЙ Метод для обновления базовых значений связки зума >>>
+    // <<< ОБНОВЛЕН Метод захвата базовых значений зума >>>
     private void updateZoomLinkBaseline() {
-        if (camera == null || overlayImageView.getDrawable() == null) {
-            Log.w(TAG, "Cannot update zoom link baseline - camera or image not ready.");
-            isZoomLinked = false; // Выключаем связку, если что-то не так
-            linkZoomSwitch.setChecked(false);
-            linkZoomSwitch.setEnabled(false);
+        if (camera == null || overlayImageView.getDrawable() == null || matrix == null) {
+            Log.w(TAG, "Cannot update zoom link baseline - camera, image or matrix not ready.");
+            // Выключаем связку, если что-то не готово
+            if(isZoomLinked && linkZoomSwitch != null) {
+                isZoomLinked = false;
+                linkZoomSwitch.setChecked(false);
+            }
+            if(linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
             return;
         }
-        // Получаем текущий линейный зум камеры
-        LiveData<ZoomState> currentZoomState = camera.getCameraInfo().getZoomState();
-        if (currentZoomState != null && currentZoomState.getValue() != null) {
-            initialCameraLinearZoom = currentZoomState.getValue().getLinearZoom();
+        // Получаем текущий ФАКТИЧЕСКИЙ зум камеры
+        LiveData<ZoomState> zoomStateLiveData = camera.getCameraInfo().getZoomState();
+        ZoomState currentZoomState = zoomStateLiveData.getValue();
+        if (currentZoomState != null) {
+            initialCameraZoomRatio = currentZoomState.getZoomRatio();
+            // Убедимся, что начальный зум не слишком мал для деления
+            if (initialCameraZoomRatio < 1.0f) initialCameraZoomRatio = 1.0f; // Используем 1.0x как минимум
         } else {
-             initialCameraLinearZoom = 0f; // Безопасное значение по умолчанию
-             Log.w(TAG,"Could not get current camera zoom state for baseline.");
+             initialCameraZoomRatio = 1.0f; // Безопасное значение по умолчанию
+             Log.w(TAG,"Could not get current camera zoom state for baseline. Using 1.0f.");
         }
         // Получаем текущий масштаб изображения
         initialImageScale = getMatrixScale(matrix);
+        Log.i(TAG, "Zoom Link Baseline UPDATED. Initial Cam Ratio: " + initialCameraZoomRatio + ", Initial Img Scale: " + initialImageScale);
+
     }
 
-    // <<< НОВЫЙ Вспомогательный метод для получения масштаба из матрицы >>>
-    private float getMatrixScale(Matrix matrix) {
-        float[] values = new float[9];
-        matrix.getValues(values);
-        // Можно усреднить X и Y или взять один. Берем X.
-        // Учитываем возможное вращение: scale = sqrt(sx^2 + skewX^2)
-        float scaleX = values[Matrix.MSCALE_X];
-        float skewY = values[Matrix.MSKEW_Y]; // Элемент, связанный с искажением при вращении
-        return (float) Math.sqrt(scaleX * scaleX + skewY * skewY);
-    }
-
+    // Вспомогательный метод получения масштаба из матрицы (без изменений)
+    private float getMatrixScale(Matrix matrix) { float[] values = new float[9]; matrix.getValues(values); float scaleX = values[Matrix.MSCALE_X]; float skewY = values[Matrix.MSKEW_Y]; return (float) Math.sqrt(scaleX * scaleX + skewY * skewY); }
 
     // --- Логика загрузки и обработки изображения ---
     private void loadOriginalBitmap(Uri imageUri) {
         Log.d(TAG, "loadOriginalBitmap started for URI: " + imageUri);
-        recycleAllBitmaps(); // Очищаем все старое
+        recycleAllBitmaps();
         try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) {
             if (inputStream == null) throw new IOException("Unable to open input stream");
             BitmapFactory.Options options = new BitmapFactory.Options(); options.inPreferredConfig = Bitmap.Config.ARGB_8888;
@@ -286,16 +250,18 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
             if (originalBitmap != null) {
                 Log.i(TAG, "Original bitmap loaded: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight());
-                linkZoomSwitch.setEnabled(true); // <<< Активируем переключатель связки
-                isZoomLinked = false;            // <<< Выключаем связку при загрузке нового
-                linkZoomSwitch.setChecked(false);
+                linkZoomSwitch.setEnabled(true); // Активируем переключатель связки
+                if (isZoomLinked) { // Если связка была включена, выключаем ее
+                    isZoomLinked = false;
+                    linkZoomSwitch.setChecked(false);
+                }
                 if (isPencilMode) { createGrayscaleBitmap(); }
                 updateLayerButtonVisibility();
                 updateImageDisplay();
                 overlayImageView.setVisibility(View.VISIBLE);
                 transparencySlider.setVisibility(View.VISIBLE); transparencySlider.setEnabled(true); transparencySlider.setValue(1.0f);
                 overlayImageView.setAlpha(1.0f);
-                resetImageMatrix();
+                resetImageMatrix(); // Сбрасываем матрицу (это обновит и baseline зума, если связка включена)
                 Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show();
             } else { throw new IOException("BitmapFactory returned null"); }
         } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory loading original bitmap", oom); Toast.makeText(this, "Недостаточно памяти для загрузки", Toast.LENGTH_LONG).show(); clearImageRelatedData(); }
@@ -303,11 +269,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     }
 
     // (createGrayscaleBitmap, createCompositeGrayscaleBitmap без изменений)
-    private void createGrayscaleBitmap() { /* ... */ if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "createGrayscaleBitmap: Original is null or recycled"); return; } Log.d(TAG, "Creating grayscale bitmap..."); recycleBitmap(grayscaleBitmap); try { grayscaleBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888); Canvas canvas = new Canvas(grayscaleBitmap); ColorMatrix cm = new ColorMatrix(); cm.setSaturation(0); Paint grayPaint = new Paint(); grayPaint.setColorFilter(new ColorMatrixColorFilter(cm)); grayPaint.setAntiAlias(true); canvas.drawBitmap(originalBitmap, 0, 0, grayPaint); Log.d(TAG, "Grayscale bitmap created."); } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory creating grayscale bitmap", oom); Toast.makeText(this, "Недостаточно памяти для обработки", Toast.LENGTH_SHORT).show(); grayscaleBitmap = null; } catch (Exception e) { Log.e(TAG, "Error creating grayscale bitmap", e); grayscaleBitmap = null; } }
-    private Bitmap createCompositeGrayscaleBitmap() { /* ... */ if (grayscaleBitmap == null || grayscaleBitmap.isRecycled()) { Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available."); return null; } if (layerVisibility == null) { Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility is null."); return null; } Log.d(TAG, "Creating composite grayscale bitmap..."); int width = grayscaleBitmap.getWidth(); int height = grayscaleBitmap.getHeight(); int[] grayPixels = new int[width * height]; int[] finalPixels = new int[width * height]; try { grayscaleBitmap.getPixels(grayPixels, 0, width, 0, 0, width, height); boolean anyLayerVisible = false; for (int j = 0; j < grayPixels.length; j++) { int grayValue = Color.red(grayPixels[j]); int layerIndex = GRAY_LEVELS - 1 - (int) (grayValue / GRAY_RANGE_SIZE); layerIndex = Math.max(0, Math.min(GRAY_LEVELS - 1, layerIndex)); if (layerVisibility[layerIndex]) { finalPixels[j] = grayPixels[j]; anyLayerVisible = true; } else { finalPixels[j] = Color.TRANSPARENT; } } if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be transparent."); Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); composite.setPixels(finalPixels, 0, width, 0, 0, width, height); Log.d(TAG, "Composite grayscale bitmap created."); return composite; } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory during grayscale compositing", oom); Toast.makeText(this, "Недостаточно памяти для композитинга", Toast.LENGTH_SHORT).show(); return null; } catch (Exception e) { Log.e(TAG, "Error during grayscale compositing", e); return null; } }
+     private void createGrayscaleBitmap() { if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "createGrayscaleBitmap: Original is null or recycled"); return; } Log.d(TAG, "Creating grayscale bitmap..."); recycleBitmap(grayscaleBitmap); try { grayscaleBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888); Canvas canvas = new Canvas(grayscaleBitmap); ColorMatrix cm = new ColorMatrix(); cm.setSaturation(0); Paint grayPaint = new Paint(); grayPaint.setColorFilter(new ColorMatrixColorFilter(cm)); grayPaint.setAntiAlias(true); canvas.drawBitmap(originalBitmap, 0, 0, grayPaint); Log.d(TAG, "Grayscale bitmap created."); } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory creating grayscale bitmap", oom); Toast.makeText(this, "Недостаточно памяти для обработки", Toast.LENGTH_SHORT).show(); grayscaleBitmap = null; } catch (Exception e) { Log.e(TAG, "Error creating grayscale bitmap", e); grayscaleBitmap = null; } }
+     private Bitmap createCompositeGrayscaleBitmap() { if (grayscaleBitmap == null || grayscaleBitmap.isRecycled()) { Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available."); return null; } if (layerVisibility == null) { Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility is null."); return null; } Log.d(TAG, "Creating composite grayscale bitmap..."); int width = grayscaleBitmap.getWidth(); int height = grayscaleBitmap.getHeight(); int[] grayPixels = new int[width * height]; int[] finalPixels = new int[width * height]; try { grayscaleBitmap.getPixels(grayPixels, 0, width, 0, 0, width, height); boolean anyLayerVisible = false; for (int j = 0; j < grayPixels.length; j++) { int grayValue = Color.red(grayPixels[j]); int layerIndex = GRAY_LEVELS - 1 - (int) (grayValue / GRAY_RANGE_SIZE); layerIndex = Math.max(0, Math.min(GRAY_LEVELS - 1, layerIndex)); if (layerVisibility[layerIndex]) { finalPixels[j] = grayPixels[j]; anyLayerVisible = true; } else { finalPixels[j] = Color.TRANSPARENT; } } if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be transparent."); Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); composite.setPixels(finalPixels, 0, width, 0, 0, width, height); Log.d(TAG, "Composite grayscale bitmap created."); return composite; } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory during grayscale compositing", oom); Toast.makeText(this, "Недостаточно памяти для композитинга", Toast.LENGTH_SHORT).show(); return null; } catch (Exception e) { Log.e(TAG, "Error during grayscale compositing", e); return null; } }
 
     // (updateImageDisplay без изменений)
-    private void updateImageDisplay() { /* ... */ if (overlayImageView == null) return; if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay."); clearImageRelatedData(); return; } Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode); recycleBitmap(finalCompositeBitmap); Bitmap bitmapToShow; if (isPencilMode) { finalCompositeBitmap = createCompositeGrayscaleBitmap(); bitmapToShow = finalCompositeBitmap; if (bitmapToShow == null) { Log.w(TAG,"Composite bitmap creation failed, showing original as fallback."); bitmapToShow = originalBitmap; } } else { bitmapToShow = originalBitmap; } if (bitmapToShow != null && !bitmapToShow.isRecycled()) { overlayImageView.setImageBitmap(bitmapToShow); overlayImageView.setImageMatrix(matrix); overlayImageView.setVisibility(View.VISIBLE); Log.d(TAG, "Bitmap set to overlayImageView."); } else { Log.w(TAG, "bitmapToShow is null or recycled. Clearing overlay & hiding."); clearImageRelatedData(); } }
+    private void updateImageDisplay() { if (overlayImageView == null) return; if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay."); clearImageRelatedData(); return; } Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode); recycleBitmap(finalCompositeBitmap); Bitmap bitmapToShow; if (isPencilMode) { finalCompositeBitmap = createCompositeGrayscaleBitmap(); bitmapToShow = finalCompositeBitmap; if (bitmapToShow == null) { Log.w(TAG,"Composite bitmap creation failed, showing original as fallback."); bitmapToShow = originalBitmap; } } else { bitmapToShow = originalBitmap; } if (bitmapToShow != null && !bitmapToShow.isRecycled()) { overlayImageView.setImageBitmap(bitmapToShow); overlayImageView.setImageMatrix(matrix); overlayImageView.setVisibility(View.VISIBLE); Log.d(TAG, "Bitmap set to overlayImageView."); } else { Log.w(TAG, "bitmapToShow is null or recycled. Clearing overlay & hiding."); clearImageRelatedData(); } }
 
     // --- Диалог выбора слоев (без изменений) ---
     private void showLayerSelectionDialog() { /* ... */ Log.d(TAG, "Showing layer selection dialog."); if (PENCIL_HARDNESS == null || layerVisibility == null) { Log.e(TAG, "Layer data is null."); return; } AlertDialog.Builder builder = new AlertDialog.Builder(this); LayoutInflater inflater = this.getLayoutInflater(); View dialogView = inflater.inflate(R.layout.dialog_layer_select, null); builder.setView(dialogView); RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView); if (recyclerView == null) { Log.e(TAG, "RecyclerView not found!"); Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show(); return; } recyclerView.setLayoutManager(new LinearLayoutManager(this)); final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this); recyclerView.setAdapter(adapter); builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss()); builder.setNeutralButton("Все", (dialog, which) -> { Arrays.fill(layerVisibility, true); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); builder.setNegativeButton("Ничего", (dialog, which) -> { Arrays.fill(layerVisibility, false); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); AlertDialog dialog = builder.create(); dialog.show(); }
@@ -318,33 +284,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     // --- Управление памятью и UI состоянием ---
     private void recycleBitmap(Bitmap bitmap) { if (bitmap != null && !bitmap.isRecycled()) { bitmap.recycle(); } }
     private void recycleAllBitmaps() { Log.d(TAG, "Recycling all bitmaps..."); recycleBitmap(originalBitmap); originalBitmap = null; recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; Log.d(TAG, "All bitmaps recycled."); }
-    // <<< ИЗМЕНЕН Метод очистки >>>
-    private void clearImageRelatedData() {
-         Log.d(TAG, "Clearing image related data and UI");
-         recycleAllBitmaps();
-         if(overlayImageView != null) {
-             overlayImageView.setImageBitmap(null);
-             overlayImageView.setVisibility(View.GONE);
-         }
-         if(transparencySlider != null) {
-             transparencySlider.setVisibility(View.GONE);
-             transparencySlider.setEnabled(false);
-         }
-         if (isPencilMode && pencilModeSwitch != null) {
-              isPencilMode = false;
-              pencilModeSwitch.setChecked(false);
-         }
-         // <<< Выключаем и деактивируем связку зума при очистке >>>
-         if (isZoomLinked && linkZoomSwitch != null) {
-             isZoomLinked = false;
-             linkZoomSwitch.setChecked(false);
-         }
-         if (linkZoomSwitch != null) {
-              linkZoomSwitch.setEnabled(false);
-         }
-         updateLayerButtonVisibility();
-    }
-
+    private void clearImageRelatedData() { Log.d(TAG, "Clearing image related data and UI"); recycleAllBitmaps(); if(overlayImageView != null) { overlayImageView.setImageBitmap(null); overlayImageView.setVisibility(View.GONE); } if(transparencySlider != null) { transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } if (isPencilMode && pencilModeSwitch != null) { isPencilMode = false; pencilModeSwitch.setChecked(false); } if (isZoomLinked && linkZoomSwitch != null) { isZoomLinked = false; linkZoomSwitch.setChecked(false); } if (linkZoomSwitch != null) { linkZoomSwitch.setEnabled(false); } updateLayerButtonVisibility(); }
 
     // --- Сброс матрицы изображения ---
     private void resetImageMatrix() {
@@ -361,7 +301,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             matrix.postScale(scale, scale); matrix.postTranslate(dx, dy);
             overlayImageView.setImageMatrix(matrix);
             savedMatrix.set(matrix);
-            // <<< Если зум связан, обновляем базу после сброса матрицы >>>
+            // <<< Обновляем базу после сброса >>>
             if(isZoomLinked) {
                  updateZoomLinkBaseline();
                  Log.d(TAG, "Image matrix reset. Zoom link baseline updated.");
@@ -370,7 +310,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             }
         });
     }
-
 
     // Метод обновления видимости кнопки "Слои" (без изменений)
     private void updateLayerButtonVisibility() { boolean shouldBeVisible = isPencilMode && (originalBitmap != null && !originalBitmap.isRecycled()); if (layerSelectButton != null) { layerSelectButton.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE); Log.d(TAG, "Layer Button Visibility updated to: " + (shouldBeVisible ? "VISIBLE" : "GONE")); } }
@@ -385,31 +324,30 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void startCamera() { /* ... */ Log.i(TAG, "startCamera called"); cameraProviderFuture = ProcessCameraProvider.getInstance(this); cameraProviderFuture.addListener(() -> { try { cameraProvider = cameraProviderFuture.get(); Log.i(TAG, "CameraProvider obtained successfully."); bindPreviewUseCase(); } catch (ExecutionException | InterruptedException e) { Log.e(TAG, "Error getting CameraProvider: ", e); Toast.makeText(this, "Failed to start camera", Toast.LENGTH_SHORT).show(); } }, ContextCompat.getMainExecutor(this)); }
     private void bindPreviewUseCase() { /* ... */ Log.d(TAG, "bindPreviewUseCase called"); if (cameraProvider == null) { Log.e(TAG, "CameraProvider not initialized."); return; } try { cameraProvider.unbindAll(); Log.d(TAG, "Previous use cases unbound."); CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build(); previewUseCase = new Preview.Builder().build(); previewView.post(() -> { Log.d(TAG, "Setting SurfaceProvider for Preview"); previewUseCase.setSurfaceProvider(previewView.getSurfaceProvider()); }); Log.d(TAG, "Binding lifecycle..."); camera = cameraProvider.bindToLifecycle(this, cameraSelector, previewUseCase); if (camera != null) { Log.i(TAG, "Camera bound to lifecycle successfully."); setupCameraZoomSliderState(camera.getCameraInfo(), camera.getCameraControl()); } else { Log.e(TAG, "Failed to get Camera instance after binding."); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); } } catch (Exception e) { Log.e(TAG, "Error binding preview use case: ", e); Toast.makeText(this, "Не удалось привязать камеру", Toast.LENGTH_SHORT).show(); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); } }
 
-    // <<< ИЗМЕНЕН Метод настройки зума камеры >>>
+    // <<< ОБНОВЛЕН Метод настройки зума камеры >>>
     private void setupCameraZoomSliderState(CameraInfo cameraInfo, CameraControl cameraControl) {
         Log.d(TAG, "setupCameraZoomSliderState called");
         LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState();
-        zoomStateLiveData.observe(this, zoomState -> {
+        zoomStateLiveData.observe(this, zoomState -> { // <<< Используем Observer для реакции на изменения
             if (zoomState == null) {
                 Log.w(TAG, "ZoomState is null. Disabling camera zoom slider and link switch.");
-                zoomSlider.setValue(0f);
-                zoomSlider.setEnabled(false);
-                zoomSlider.setVisibility(View.INVISIBLE);
-                linkZoomSwitch.setEnabled(false); // <<< Деактивируем связку, если зум не поддерживается
-                if(isZoomLinked) { // Выключаем, если была включена
-                    isZoomLinked = false;
-                    linkZoomSwitch.setChecked(false);
-                }
+                zoomSlider.setValue(0f); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE);
+                linkZoomSwitch.setEnabled(false);
+                if(isZoomLinked) { isZoomLinked = false; linkZoomSwitch.setChecked(false); }
             } else {
-                Log.i(TAG, "ZoomState updated. LinearZoom: " + zoomState.getLinearZoom());
-                zoomSlider.setValueFrom(0f);
-                zoomSlider.setValueTo(1f);
-                zoomSlider.setStepSize(0.01f);
-                zoomSlider.setValue(zoomState.getLinearZoom()); // Устанавливаем текущее значение
-                zoomSlider.setEnabled(true);
-                zoomSlider.setVisibility(View.VISIBLE);
-                // Активируем связку, только если есть изображение
-                linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled());
+                Log.i(TAG, "ZoomState updated. Ratio: " + zoomState.getZoomRatio() + ", Linear: " + zoomState.getLinearZoom());
+                // Обновляем только если пользователь НЕ двигает слайдер (чтобы избежать конфликта)
+                 if (!zoomSlider.isPressed()) {
+                    zoomSlider.setValue(zoomState.getLinearZoom());
+                 }
+                 zoomSlider.setEnabled(true); zoomSlider.setVisibility(View.VISIBLE);
+                 linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled());
+
+                 // <<< Если зум связан, применяем ИЗМЕНЕНИЕ зума камеры к картинке >>>
+                 // Это происходит ЗДЕСЬ, т.к. здесь мы гарантированно имеем АКТУАЛЬНЫЙ zoomState
+                 if (isZoomLinked && overlayImageView.getVisibility() == View.VISIBLE) {
+                    applyLinkedZoom(zoomState.getZoomRatio());
+                 }
             }
         });
         // Первоначальная настройка
@@ -424,52 +362,53 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         }
     }
 
-    // <<< ИЗМЕНЕН Слушатель слайдера зума камеры >>>
+     // <<< ОБНОВЛЕН Слушатель слайдера камеры >>>
     private void setupCameraZoomSliderListener() {
         zoomSlider.addOnChangeListener((slider, value, fromUser) -> {
             if (camera != null && fromUser) {
-                Log.v(TAG, "Camera zoom slider changed: " + value);
-                // 1. Устанавливаем зум камеры
+                Log.v(TAG, "Camera zoom slider CHANGED by user: " + value);
+                // Просто устанавливаем линейный зум камеры.
+                // Обновление картинки произойдет в Observer'е ZoomState.
                 camera.getCameraControl().setLinearZoom(value);
-
-                // 2. Если зум связан и картинка видима, масштабируем картинку
-                if (isZoomLinked && overlayImageView.getVisibility() == View.VISIBLE) {
-                    // Рассчитываем новый масштаб картинки пропорционально
-                    float currentImageScale = getMatrixScale(matrix);
-                    float scaleFactor;
-                    // Обработка случая, если начальный зум был близок к нулю
-                    if (initialCameraLinearZoom < 0.01f) {
-                        // Если начинали с нуля, просто масштабируем относительно начального масштаба картинки
-                        // пропорционально значению слайдера (0..1) -> нужно знать макс. масштаб картинки... сложно.
-                        // Проще: привязка от нуля не работает пропорционально.
-                        // Будем считать, что привязка от 0 просто ставит масштаб = начальный масштаб.
-                         scaleFactor = 1.0f; // Не меняем масштаб относительно начального
-                         Log.d(TAG, "Link scaling skipped: initial camera zoom was near zero.");
-                    } else {
-                        // Пропорциональное изменение
-                        scaleFactor = value / initialCameraLinearZoom;
-                    }
-
-                    float newImageScale = initialImageScale * scaleFactor;
-                    // Коэффициент для postScale (относительно текущего масштаба)
-                    float postScaleFactor = (currentImageScale > 0.001f) ? newImageScale / currentImageScale : 1.0f;
-
-                    // Применяем масштабирование к текущей матрице относительно центра картинки
-                    float[] values = new float[9];
-                    matrix.getValues(values);
-                    float imageCenterX = values[Matrix.MTRANS_X] + (overlayImageView.getWidth() / 2f); // Приблизительно
-                    float imageCenterY = values[Matrix.MTRANS_Y] + (overlayImageView.getHeight() / 2f); // Приблизительно
-                    // Лучше использовать midPoint, если он валиден, или центр View
-                     float pivotX = overlayImageView.getWidth() / 2f;
-                     float pivotY = overlayImageView.getHeight() / 2f;
-
-
-                    matrix.postScale(postScaleFactor, postScaleFactor, pivotX, pivotY);
-                    overlayImageView.setImageMatrix(matrix);
-                    Log.v(TAG, "Linked image scale updated. Factor: " + postScaleFactor + ", New Scale: " + newImageScale);
-                }
             }
         });
+        // Добавим слушатель окончания касания слайдера, чтобы обновить базу, если нужно
+         zoomSlider.addOnSliderTouchStopListener(slider -> {
+             if (isZoomLinked) {
+                 updateZoomLinkBaseline(); // Обновить базу после того, как пользователь отпустил слайдер
+                 Log.d(TAG,"Zoom link baseline updated after slider touch stop.");
+             }
+         });
+    }
+
+    // <<< НОВЫЙ Метод применения связанного зума >>>
+    private void applyLinkedZoom(float currentCameraZoomRatio) {
+         if (initialCameraZoomRatio < 0.01f) { // Избегаем деления на ноль
+             Log.w(TAG, "Cannot apply linked zoom, initial camera zoom ratio is too small.");
+             return;
+         }
+         if (overlayImageView.getDrawable() == null) {
+             Log.w(TAG, "Cannot apply linked zoom, overlay image drawable is null.");
+             return;
+         }
+
+        // Рассчитываем изменение зума камеры
+        float cameraZoomFactor = currentCameraZoomRatio / initialCameraZoomRatio;
+        // Целевой масштаб картинки
+        float targetImageScale = initialImageScale * cameraZoomFactor;
+        // Текущий масштаб картинки
+        float currentImageScale = getMatrixScale(matrix);
+
+        // Коэффициент для postScale
+        float postScaleFactor = (currentImageScale > 0.001f) ? targetImageScale / currentImageScale : 1.0f;
+
+        // Масштабируем относительно центра View
+        float pivotX = overlayImageView.getWidth() / 2f;
+        float pivotY = overlayImageView.getHeight() / 2f;
+
+        matrix.postScale(postScaleFactor, postScaleFactor, pivotX, pivotY);
+        overlayImageView.setImageMatrix(matrix);
+        Log.v(TAG, "Applied linked zoom: CamRatioChange=" + cameraZoomFactor + ", TargetImgScale=" + targetImageScale);
     }
 
 }
