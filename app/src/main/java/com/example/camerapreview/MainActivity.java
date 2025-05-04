@@ -29,8 +29,8 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.Button;
-import android.widget.CheckBox; // Импорт CheckBox
-import android.widget.CompoundButton; // <<< Добавлен импорт для слушателя
+import android.widget.CheckBox;
+import android.widget.CompoundButton; // <<< Убедимся, что импорт есть
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -139,11 +139,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         overlayImageView.setVisibility(View.GONE);
         transparencySlider.setVisibility(View.GONE);
         transparencySlider.setEnabled(false);
-        layerSelectButton.setVisibility(View.GONE);
+        updateLayerButtonVisibility(); // <<< Устанавливаем начальную видимость кнопки слоев
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
-        // <<< ИСПРАВЛЕНО ЗДЕСЬ (1) >>>
-        controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : ""); // Используем getString()
+        controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : "");
 
 
         Log.d(TAG, "onCreate: Setup complete");
@@ -159,27 +158,61 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     // --- Настройка слушателей UI ---
     private void setupLoadImageButtonListener() { loadImageButton.setOnClickListener(v -> { Log.i(TAG, "Load image button pressed."); try { pickImageLauncher.launch("image/*"); } catch (Exception e) { Log.e(TAG, "Error launching image picker", e); Toast.makeText(this, "Не удалось открыть галерею", Toast.LENGTH_SHORT).show(); } }); }
     private void setupTransparencySliderListener() { transparencySlider.addOnChangeListener((slider, value, fromUser) -> { if (overlayImageView.getVisibility() == View.VISIBLE && fromUser) { Log.v(TAG, "Transparency slider changed: " + value); overlayImageView.setAlpha(value); } }); }
-    private void setupPencilModeSwitchListener() { pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> { Log.i(TAG, "Pencil Mode Switch changed: " + isChecked); isPencilMode = isChecked; layerSelectButton.setVisibility(isChecked ? View.VISIBLE : View.GONE); if (isChecked) { if (grayscaleBitmap == null && originalBitmap != null) { createGrayscaleBitmap(); } } else { recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; } updateImageDisplay(); }); }
-    private void setupLayerSelectButtonListener() { layerSelectButton.setOnClickListener(v -> { Log.d(TAG, "Layer select button clicked"); showLayerSelectionDialog(); }); }
 
-    private void setupControlsVisibilityListener() {
-        controlsVisibilityCheckbox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
-                controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-                // <<< ИСПРАВЛЕНО ЗДЕСЬ (2) >>>
-                // Устанавливаем текст чекбокса в зависимости от состояния
-                controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : ""); // Используем getString()
+    // <<< ИЗМЕНЕН Слушатель переключателя Карандашного режима >>>
+    private void setupPencilModeSwitchListener() {
+        pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Log.i(TAG, "Pencil Mode Switch changed: " + isChecked);
+            isPencilMode = isChecked;
+            // layerSelectButton.setVisibility(isChecked ? View.VISIBLE : View.GONE); // <<< УБИРАЕМ прямое управление видимостью отсюда
+            if (isChecked) {
+                if (grayscaleBitmap == null && originalBitmap != null && !originalBitmap.isRecycled()) { // <<< Добавлена проверка isRecycled
+                    createGrayscaleBitmap();
+                }
+            } else {
+                recycleBitmap(grayscaleBitmap); grayscaleBitmap = null;
+                recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null;
             }
+            updateLayerButtonVisibility(); // <<< ОБНОВЛЯЕМ видимость кнопки слоев
+            updateImageDisplay();
         });
     }
 
+    private void setupLayerSelectButtonListener() { layerSelectButton.setOnClickListener(v -> { Log.d(TAG, "Layer select button clicked"); showLayerSelectionDialog(); }); }
+    private void setupControlsVisibilityListener() { controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> { Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked); controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE); controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : ""); }); }
+
     // --- Логика загрузки и обработки изображения ---
-    private void loadOriginalBitmap(Uri imageUri) { /* ... код как в пред. ответе ... */ Log.d(TAG, "loadOriginalBitmap started for URI: " + imageUri); try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) { if (inputStream == null) throw new IOException("Unable to open input stream"); BitmapFactory.Options options = new BitmapFactory.Options(); options.inPreferredConfig = Bitmap.Config.ARGB_8888; originalBitmap = BitmapFactory.decodeStream(inputStream, null, options); if (originalBitmap != null) { Log.i(TAG, "Original bitmap loaded: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight()); if (isPencilMode) { createGrayscaleBitmap(); } updateImageDisplay(); overlayImageView.setVisibility(View.VISIBLE); transparencySlider.setVisibility(View.VISIBLE); transparencySlider.setEnabled(true); transparencySlider.setValue(1.0f); overlayImageView.setAlpha(1.0f); resetImageMatrix(); Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show(); } else { throw new IOException("BitmapFactory returned null"); } } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory loading original bitmap", oom); Toast.makeText(this, "Недостаточно памяти для загрузки", Toast.LENGTH_LONG).show(); recycleAllBitmaps(); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } catch (Exception e) { Log.e(TAG, "Error loading original bitmap", e); Toast.makeText(this, "Ошибка загрузки изображения", Toast.LENGTH_SHORT).show(); recycleAllBitmaps(); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } }
+    // <<< ИЗМЕНЕН Метод загрузки >>>
+    private void loadOriginalBitmap(Uri imageUri) {
+        Log.d(TAG, "loadOriginalBitmap started for URI: " + imageUri);
+        recycleAllBitmaps(); // <<< Перемещаем очистку В НАЧАЛО, чтобы очистить перед попыткой загрузки
+        try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) {
+            if (inputStream == null) throw new IOException("Unable to open input stream");
+            BitmapFactory.Options options = new BitmapFactory.Options(); options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            originalBitmap = BitmapFactory.decodeStream(inputStream, null, options);
+
+            if (originalBitmap != null) {
+                Log.i(TAG, "Original bitmap loaded: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight());
+                if (isPencilMode) {
+                    createGrayscaleBitmap(); // Создаем серое при загрузке, если режим включен
+                }
+                updateLayerButtonVisibility(); // <<< ОБНОВЛЯЕМ видимость кнопки слоев после загрузки
+                updateImageDisplay();
+                overlayImageView.setVisibility(View.VISIBLE);
+                transparencySlider.setVisibility(View.VISIBLE); transparencySlider.setEnabled(true); transparencySlider.setValue(1.0f);
+                overlayImageView.setAlpha(1.0f);
+                resetImageMatrix();
+                Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show();
+            } else {
+                throw new IOException("BitmapFactory returned null");
+            }
+        } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory loading original bitmap", oom); Toast.makeText(this, "Недостаточно памяти для загрузки", Toast.LENGTH_LONG).show(); clearImageRelatedData(); } // <<< Используем новый метод очистки
+        catch (Exception e) { Log.e(TAG, "Error loading original bitmap", e); Toast.makeText(this, "Ошибка загрузки изображения", Toast.LENGTH_SHORT).show(); clearImageRelatedData(); } // <<< Используем новый метод очистки
+    }
+
     private void createGrayscaleBitmap() { /* ... код как в пред. ответе ... */ if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "createGrayscaleBitmap: Original is null or recycled"); return; } Log.d(TAG, "Creating grayscale bitmap..."); recycleBitmap(grayscaleBitmap); try { grayscaleBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888); Canvas canvas = new Canvas(grayscaleBitmap); ColorMatrix cm = new ColorMatrix(); cm.setSaturation(0); Paint grayPaint = new Paint(); grayPaint.setColorFilter(new ColorMatrixColorFilter(cm)); grayPaint.setAntiAlias(true); canvas.drawBitmap(originalBitmap, 0, 0, grayPaint); Log.d(TAG, "Grayscale bitmap created."); } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory creating grayscale bitmap", oom); Toast.makeText(this, "Недостаточно памяти для обработки", Toast.LENGTH_SHORT).show(); grayscaleBitmap = null; } catch (Exception e) { Log.e(TAG, "Error creating grayscale bitmap", e); grayscaleBitmap = null; } }
     private Bitmap createCompositeGrayscaleBitmap() { /* ... код как в пред. ответе ... */ if (grayscaleBitmap == null || grayscaleBitmap.isRecycled()) { Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available."); return null; } if (layerVisibility == null) { Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility is null."); return null; } Log.d(TAG, "Creating composite grayscale bitmap..."); int width = grayscaleBitmap.getWidth(); int height = grayscaleBitmap.getHeight(); int[] grayPixels = new int[width * height]; int[] finalPixels = new int[width * height]; try { grayscaleBitmap.getPixels(grayPixels, 0, width, 0, 0, width, height); boolean anyLayerVisible = false; for (int j = 0; j < grayPixels.length; j++) { int grayValue = Color.red(grayPixels[j]); int layerIndex = GRAY_LEVELS - 1 - (int) (grayValue / GRAY_RANGE_SIZE); layerIndex = Math.max(0, Math.min(GRAY_LEVELS - 1, layerIndex)); if (layerVisibility[layerIndex]) { finalPixels[j] = grayPixels[j]; anyLayerVisible = true; } else { finalPixels[j] = Color.TRANSPARENT; } } if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be transparent."); Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); composite.setPixels(finalPixels, 0, width, 0, 0, width, height); Log.d(TAG, "Composite grayscale bitmap created."); return composite; } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory during grayscale compositing", oom); Toast.makeText(this, "Недостаточно памяти для композитинга", Toast.LENGTH_SHORT).show(); return null; } catch (Exception e) { Log.e(TAG, "Error during grayscale compositing", e); return null; } }
-    private void updateImageDisplay() { /* ... код как в пред. ответе ... */ if (overlayImageView == null) return; if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay."); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); recycleAllBitmaps(); return; } Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode); recycleBitmap(finalCompositeBitmap); Bitmap bitmapToShow; if (isPencilMode) { finalCompositeBitmap = createCompositeGrayscaleBitmap(); bitmapToShow = finalCompositeBitmap; if (bitmapToShow == null) { Log.w(TAG,"Composite bitmap creation failed, showing original as fallback."); bitmapToShow = originalBitmap; } } else { bitmapToShow = originalBitmap; } if (bitmapToShow != null && !bitmapToShow.isRecycled()) { overlayImageView.setImageBitmap(bitmapToShow); overlayImageView.setImageMatrix(matrix); overlayImageView.setVisibility(View.VISIBLE); Log.d(TAG, "Bitmap set to overlayImageView."); } else { Log.w(TAG, "bitmapToShow is null or recycled. Hiding overlay."); overlayImageView.setImageBitmap(null); overlayImageView.setVisibility(View.GONE); transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } }
+    private void updateImageDisplay() { /* ... код как в пред. ответе ... */ if (overlayImageView == null) return; if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay."); clearImageRelatedData(); return; } Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode); recycleBitmap(finalCompositeBitmap); Bitmap bitmapToShow; if (isPencilMode) { finalCompositeBitmap = createCompositeGrayscaleBitmap(); bitmapToShow = finalCompositeBitmap; if (bitmapToShow == null) { Log.w(TAG,"Composite bitmap creation failed, showing original as fallback."); bitmapToShow = originalBitmap; } } else { bitmapToShow = originalBitmap; } if (bitmapToShow != null && !bitmapToShow.isRecycled()) { overlayImageView.setImageBitmap(bitmapToShow); overlayImageView.setImageMatrix(matrix); overlayImageView.setVisibility(View.VISIBLE); Log.d(TAG, "Bitmap set to overlayImageView."); } else { Log.w(TAG, "bitmapToShow is null or recycled. Clearing overlay & hiding."); clearImageRelatedData(); } }
 
     // --- Диалог выбора слоев ---
     private void showLayerSelectionDialog() { /* ... код как в пред. ответе, без setTitle ... */ Log.d(TAG, "Showing layer selection dialog."); if (PENCIL_HARDNESS == null || layerVisibility == null) { Log.e(TAG, "Layer data is null."); return; } AlertDialog.Builder builder = new AlertDialog.Builder(this); LayoutInflater inflater = this.getLayoutInflater(); View dialogView = inflater.inflate(R.layout.dialog_layer_select, null); builder.setView(dialogView); RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView); if (recyclerView == null) { Log.e(TAG, "RecyclerView not found!"); Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show(); return; } recyclerView.setLayoutManager(new LinearLayoutManager(this)); final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this); recyclerView.setAdapter(adapter); builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss()); builder.setNeutralButton("Все", (dialog, which) -> { Arrays.fill(layerVisibility, true); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); builder.setNegativeButton("Ничего", (dialog, which) -> { Arrays.fill(layerVisibility, false); if (adapter != null) adapter.notifyDataSetChanged(); updateImageDisplay(); }); AlertDialog dialog = builder.create(); dialog.show(); }
@@ -188,14 +221,45 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     @Override
     public void onLayerVisibilityChanged(int position, boolean isVisible) { /* ... код как в пред. ответе ... */ Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible); updateImageDisplay(); }
 
-    // --- Управление памятью ---
+    // --- Управление памятью и UI состоянием ---
     private void recycleBitmap(Bitmap bitmap) { if (bitmap != null && !bitmap.isRecycled()) { bitmap.recycle(); } }
     private void recycleAllBitmaps() { Log.d(TAG, "Recycling all bitmaps..."); recycleBitmap(originalBitmap); originalBitmap = null; recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; Log.d(TAG, "All bitmaps recycled."); }
+
+    // <<< НОВЫЙ Метод для очистки данных и скрытия UI, связанных с изображением >>>
+    private void clearImageRelatedData() {
+         Log.d(TAG, "Clearing image related data and UI");
+         recycleAllBitmaps(); // Очищаем битмапы
+         if(overlayImageView != null) {
+             overlayImageView.setImageBitmap(null);
+             overlayImageView.setVisibility(View.GONE); // Скрываем ImageView
+         }
+         if(transparencySlider != null) {
+             transparencySlider.setVisibility(View.GONE); // Скрываем слайдер прозрачности
+             transparencySlider.setEnabled(false);
+         }
+         // Сбрасываем режим карандаша, если он был включен
+         if (isPencilMode && pencilModeSwitch != null) {
+              isPencilMode = false;
+              pencilModeSwitch.setChecked(false); // Обновляем UI Switch'а
+              // Видимость кнопки слоев обновится в слушателе Switch'а
+         }
+         updateLayerButtonVisibility(); // <<< Убедимся, что кнопка слоев скрыта
+    }
 
     // --- Сброс матрицы изображения ---
     private void resetImageMatrix() { /* ... код как в пред. ответе ... */ Log.d(TAG, "Resetting image matrix"); matrix.reset(); overlayImageView.post(() -> { if (overlayImageView == null || overlayImageView.getDrawable() == null) return; int viewWidth = overlayImageView.getWidth(); int viewHeight = overlayImageView.getHeight(); int drawableWidth = overlayImageView.getDrawable().getIntrinsicWidth(); int drawableHeight = overlayImageView.getDrawable().getIntrinsicHeight(); if (viewWidth <= 0 || viewHeight <= 0 || drawableWidth <= 0 || drawableHeight <= 0) { Log.w(TAG, "Cannot reset matrix, invalid dimensions."); return; } matrix.reset(); float scale; float dx = 0, dy = 0; if (drawableWidth * viewHeight > viewWidth * drawableHeight) { scale = (float) viewWidth / (float) drawableWidth; dy = (viewHeight - drawableHeight * scale) * 0.5f; } else { scale = (float) viewHeight / (float) drawableHeight; dx = (viewWidth - drawableWidth * scale) * 0.5f; } matrix.postScale(scale, scale); matrix.postTranslate(dx, dy); overlayImageView.setImageMatrix(matrix); savedMatrix.set(matrix); Log.d(TAG, "Image matrix reset and applied."); }); }
 
-    // --- Остальной код ---
+    // <<< НОВЫЙ Метод для обновления видимости кнопки "Слои" >>>
+    private void updateLayerButtonVisibility() {
+        // Кнопка видима только если включен режим карандаша И есть загруженное изображение
+        boolean shouldBeVisible = isPencilMode && (originalBitmap != null && !originalBitmap.isRecycled());
+        if (layerSelectButton != null) {
+            layerSelectButton.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
+            Log.d(TAG, "Layer Button Visibility updated to: " + (shouldBeVisible ? "VISIBLE" : "GONE"));
+        }
+    }
+
+    // --- Остальной код (CameraX, UI, Lifecycle) ---
     @Override protected void onDestroy() { super.onDestroy(); Log.d(TAG, "onDestroy called"); recycleAllBitmaps(); if (cameraProvider != null) { cameraProvider.unbindAll(); } }
     private void hideSystemUI() { /* ... */ Log.v(TAG, "Attempting to hide system UI"); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { final WindowInsetsController controller = getWindow().getInsetsController(); if (controller != null) { controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars()); controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE); } else { Log.w(TAG, "WindowInsetsController is null"); hideSystemUIOldApi(); } } else { hideSystemUIOldApi(); } }
     private void hideSystemUIOldApi() { /* ... */ Log.v(TAG, "Using old API to hide system UI"); View decorView = getWindow().getDecorView(); if (decorView != null) { decorView.setSystemUiVisibility( View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN); } else { Log.w(TAG, "DecorView is null"); } }
