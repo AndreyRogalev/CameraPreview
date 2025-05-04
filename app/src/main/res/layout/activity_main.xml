@@ -7,6 +7,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <!-- Компонент для отображения предпросмотра камеры (фон) -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -17,21 +18,50 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:scaleType="fillCenter" />
 
-    <!-- УДАЛЕНО: Кнопка для переключения камеры -->
-    <!--
+    <!-- ImageView для наложения загруженного изображения -->
+    <!-- Важно: scaleType="matrix" для применения трансформаций -->
+    <ImageView
+        android:id="@+id/overlayImageView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="matrix"
+        android:visibility="gone"  />
+        <!-- Пока скрыто -->
+        <!--app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:contentDescription="@string/overlay_image_description" /> --> <!-- Добавьте строку в strings.xml -->
+
+    <!-- Кнопка для загрузки изображения -->
     <Button
-        android:id="@+id/switch_camera_button"
+        android:id="@+id/load_image_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:text="Переключить"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:text="Загрузить"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-    -->
 
+    <!-- Ползунок для управления ЗУМОМ КАМЕРЫ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:valueFrom="0.0"
+        android:valueTo="1.0"
+        android:stepSize="0.01"
+        app:layout_constraintBottom_toTopOf="@id/transparency_slider"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Ползунок для управления ПРОЗРАЧНОСТЬЮ ИЗОБРАЖЕНИЯ -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/transparency_slider"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -39,9 +69,12 @@
         android:layout_marginBottom="32dp"
         android:valueFrom="0.0"
         android:valueTo="1.0"
-        android:stepSize="0.1"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:stepSize="0.05"
+        android:value="1.0"  />
+        <!-- Начальное значение - непрозрачный -->
+        <!--app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        android:visibility="gone" /> --> <!-- Пока скрыт -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
