@@ -1,27 +1,31 @@
+<!-- Полный путь к файлу: /root/CameraPreview/app/src/main/res/layout/list_item_layer.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp"
-    android:gravity="center_vertical"
-    android:background="?android:attr/selectableItemBackground">
+    android:paddingStart="16dp"          <!-- Отступ всего элемента слева -->
+    android:paddingEnd="16dp"           <!-- Отступ всего элемента справа -->
+    android:paddingTop="4dp"            <!-- Вертикальный отступ сверху -->
+    android:paddingBottom="4dp"         <!-- Вертикальный отступ снизу -->
+    android:gravity="center_vertical"   <!-- Выравнивание по вертикали -->
+    android:background="?android:attr/selectableItemBackground"> <!-- Эффект нажатия -->
 
+    <!-- Текст слоя (HB, 9H и т.д.) -->
     <TextView
         android:id="@+id/layerNameTextView"
-        android:layout_width="0dp"
+        android:layout_width="0dp"            <!-- Занимает все доступное место по ширине -->
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:text="Layer Name"/>
+        android:layout_weight="1"             <!-- Растягивается -->
+        android:textAppearance="?android:attr/textAppearanceMedium" <!-- Размер текста -->
+        android:text="Layer Name"/>           <!-- Пример текста (заменится в коде) -->
 
+    <!-- Чекбокс -->
     <CheckBox
         android:id="@+id/layerCheckBox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"/>
+        android:layout_marginStart="8dp"/>   <!-- <<< ВОТ ЭТОТ ОТСТУП УМЕНЬШЕН (был 16dp) >>> -->
+                                            <!-- Можете поставить 4dp для еще меньшего расстояния -->
 
 </LinearLayout>
