@@ -60,18 +60,19 @@
         app:layout_constraintEnd_toEndOf="parent"/>
 
     <!-- Ползунок ЗУМА КАМЕРЫ (над ползунком прозрачности) -->
+    <!-- УБРАНЫ ВНУТРЕННИЕ КОММЕНТАРИИ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp" <!-- Отступ от нижнего слайдера -->
+        android:layout_marginBottom="16dp"
         android:valueFrom="0.0"
         android:valueTo="1.0"
         android:stepSize="0.01"
-        android:visibility="visible" <!-- ВИДИМ ПО УМОЛЧАНИЮ (если камера поддерживает) -->
-        app:layout_constraintBottom_toTopOf="@id/transparency_slider" <!-- Привязка к верху нижнего слайдера -->
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/transparency_slider"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
