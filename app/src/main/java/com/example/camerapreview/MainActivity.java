@@ -37,7 +37,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
+import androidx.annotation.NonNull; // <<< Убедимся, что импорт есть
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.camera.core.Camera;
@@ -55,8 +55,8 @@ import androidx.lifecycle.Observer;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.slider.BaseOnSliderTouchListener; // <<< НОВЫЙ ИМПОРТ
-import com.google.android.material.slider.Slider;
+// import com.google.android.material.slider.BaseOnSliderTouchListener; // <<< УДАЛЕН ИМПОРТ
+import com.google.android.material.slider.Slider; // <<< Убедимся, что импорт есть
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.io.IOException;
@@ -89,7 +89,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private float rotation(MotionEvent event) { if (event.getPointerCount() < 2) return 0f; double delta_x = (event.getX(0) - event.getX(1)); double delta_y = (event.getY(0) - event.getY(1)); double radians = Math.atan2(delta_y, delta_x); return (float) Math.toDegrees(radians); }
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener { @Override public boolean onScale(ScaleGestureDetector detector) { return true; } }
 
-    // --- Настройка слушателей UI ---
+    // --- Настройка слушателей UI (без изменений, кроме zoomSlider) ---
     private void setupLoadImageButtonListener() { /* ... */ loadImageButton.setOnClickListener(v -> { Log.i(TAG, "Load image button pressed."); try { pickImageLauncher.launch("image/*"); } catch (Exception e) { Log.e(TAG, "Error launching image picker", e); Toast.makeText(this, "Не удалось открыть галерею", Toast.LENGTH_SHORT).show(); } }); }
     private void setupTransparencySliderListener() { /* ... */ transparencySlider.addOnChangeListener((slider, value, fromUser) -> { if (overlayImageView.getVisibility() == View.VISIBLE && fromUser) { Log.v(TAG, "Transparency slider changed: " + value); overlayImageView.setAlpha(value); } }); }
     private void setupPencilModeSwitchListener() { /* ... */ pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> { Log.i(TAG, "Pencil Mode Switch changed: " + isChecked); isPencilMode = isChecked; if (isChecked) { if (grayscaleBitmap == null && originalBitmap != null && !originalBitmap.isRecycled()) { createGrayscaleBitmap(); } } else { recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; } updateLayerButtonVisibility(); updateImageDisplay(); }); }
@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void updateZoomLinkBaseline() { /* ... */ if (camera == null || overlayImageView.getDrawable() == null || matrix == null) { Log.w(TAG, "Cannot update zoom link baseline - camera, image or matrix not ready."); if(isZoomLinked && linkZoomSwitch != null) { isZoomLinked = false; linkZoomSwitch.setChecked(false); } if(linkZoomSwitch != null) linkZoomSwitch.setEnabled(false); return; } LiveData<ZoomState> zoomStateLiveData = camera.getCameraInfo().getZoomState(); ZoomState currentZoomState = zoomStateLiveData.getValue(); if (currentZoomState != null) { initialCameraZoomRatio = currentZoomState.getZoomRatio(); if (initialCameraZoomRatio < 1.0f) initialCameraZoomRatio = 1.0f; } else { initialCameraZoomRatio = 1.0f; Log.w(TAG,"Could not get current camera zoom state for baseline. Using 1.0f."); } initialImageScale = getMatrixScale(matrix); Log.i(TAG, "Zoom Link Baseline UPDATED. Initial Cam Ratio: " + initialCameraZoomRatio + ", Initial Img Scale: " + initialImageScale); }
     private float getMatrixScale(Matrix matrix) { /* ... */ float[] values = new float[9]; matrix.getValues(values); float scaleX = values[Matrix.MSCALE_X]; float skewY = values[Matrix.MSKEW_Y]; return (float) Math.sqrt(scaleX * scaleX + skewY * skewY); }
 
-    // --- Логика загрузки и обработки изображения ---
+    // --- Логика загрузки и обработки изображения (без изменений) ---
     private void loadOriginalBitmap(Uri imageUri) { /* ... */ Log.d(TAG, "loadOriginalBitmap started for URI: " + imageUri); recycleAllBitmaps(); try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) { if (inputStream == null) throw new IOException("Unable to open input stream"); BitmapFactory.Options options = new BitmapFactory.Options(); options.inPreferredConfig = Bitmap.Config.ARGB_8888; originalBitmap = BitmapFactory.decodeStream(inputStream, null, options); if (originalBitmap != null) { Log.i(TAG, "Original bitmap loaded: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight()); linkZoomSwitch.setEnabled(true); if (isZoomLinked) { isZoomLinked = false; linkZoomSwitch.setChecked(false); } if (isPencilMode) { createGrayscaleBitmap(); } updateLayerButtonVisibility(); updateImageDisplay(); overlayImageView.setVisibility(View.VISIBLE); transparencySlider.setVisibility(View.VISIBLE); transparencySlider.setEnabled(true); transparencySlider.setValue(1.0f); overlayImageView.setAlpha(1.0f); resetImageMatrix(); Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show(); } else { throw new IOException("BitmapFactory returned null"); } } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory loading original bitmap", oom); Toast.makeText(this, "Недостаточно памяти для загрузки", Toast.LENGTH_LONG).show(); clearImageRelatedData(); } catch (Exception e) { Log.e(TAG, "Error loading original bitmap", e); Toast.makeText(this, "Ошибка загрузки изображения", Toast.LENGTH_SHORT).show(); clearImageRelatedData(); } }
     private void createGrayscaleBitmap() { /* ... */ if (originalBitmap == null || originalBitmap.isRecycled()) { Log.w(TAG, "createGrayscaleBitmap: Original is null or recycled"); return; } Log.d(TAG, "Creating grayscale bitmap..."); recycleBitmap(grayscaleBitmap); try { grayscaleBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888); Canvas canvas = new Canvas(grayscaleBitmap); ColorMatrix cm = new ColorMatrix(); cm.setSaturation(0); Paint grayPaint = new Paint(); grayPaint.setColorFilter(new ColorMatrixColorFilter(cm)); grayPaint.setAntiAlias(true); canvas.drawBitmap(originalBitmap, 0, 0, grayPaint); Log.d(TAG, "Grayscale bitmap created."); } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory creating grayscale bitmap", oom); Toast.makeText(this, "Недостаточно памяти для обработки", Toast.LENGTH_SHORT).show(); grayscaleBitmap = null; } catch (Exception e) { Log.e(TAG, "Error creating grayscale bitmap", e); grayscaleBitmap = null; } }
     private Bitmap createCompositeGrayscaleBitmap() { /* ... */ if (grayscaleBitmap == null || grayscaleBitmap.isRecycled()) { Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available."); return null; } if (layerVisibility == null) { Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility is null."); return null; } Log.d(TAG, "Creating composite grayscale bitmap..."); int width = grayscaleBitmap.getWidth(); int height = grayscaleBitmap.getHeight(); int[] grayPixels = new int[width * height]; int[] finalPixels = new int[width * height]; try { grayscaleBitmap.getPixels(grayPixels, 0, width, 0, 0, width, height); boolean anyLayerVisible = false; for (int j = 0; j < grayPixels.length; j++) { int grayValue = Color.red(grayPixels[j]); int layerIndex = GRAY_LEVELS - 1 - (int) (grayValue / GRAY_RANGE_SIZE); layerIndex = Math.max(0, Math.min(GRAY_LEVELS - 1, layerIndex)); if (layerVisibility[layerIndex]) { finalPixels[j] = grayPixels[j]; anyLayerVisible = true; } else { finalPixels[j] = Color.TRANSPARENT; } } if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be transparent."); Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); composite.setPixels(finalPixels, 0, width, 0, 0, width, height); Log.d(TAG, "Composite grayscale bitmap created."); return composite; } catch (OutOfMemoryError oom) { Log.e(TAG, "Out of memory during grayscale compositing", oom); Toast.makeText(this, "Недостаточно памяти для композитинга", Toast.LENGTH_SHORT).show(); return null; } catch (Exception e) { Log.e(TAG, "Error during grayscale compositing", e); return null; } }
@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     // Обратный вызов от Адаптера (без изменений)
     @Override public void onLayerVisibilityChanged(int position, boolean isVisible) { Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible); updateImageDisplay(); }
 
-    // --- Управление памятью и UI состоянием ---
+    // --- Управление памятью и UI состоянием (без изменений) ---
     private void recycleBitmap(Bitmap bitmap) { if (bitmap != null && !bitmap.isRecycled()) { bitmap.recycle(); } }
     private void recycleAllBitmaps() { Log.d(TAG, "Recycling all bitmaps..."); recycleBitmap(originalBitmap); originalBitmap = null; recycleBitmap(grayscaleBitmap); grayscaleBitmap = null; recycleBitmap(finalCompositeBitmap); finalCompositeBitmap = null; Log.d(TAG, "All bitmaps recycled."); }
     private void clearImageRelatedData() { Log.d(TAG, "Clearing image related data and UI"); recycleAllBitmaps(); if(overlayImageView != null) { overlayImageView.setImageBitmap(null); overlayImageView.setVisibility(View.GONE); } if(transparencySlider != null) { transparencySlider.setVisibility(View.GONE); transparencySlider.setEnabled(false); } if (isPencilMode && pencilModeSwitch != null) { isPencilMode = false; pencilModeSwitch.setChecked(false); } if (isZoomLinked && linkZoomSwitch != null) { isZoomLinked = false; linkZoomSwitch.setChecked(false); } if (linkZoomSwitch != null) { linkZoomSwitch.setEnabled(false); } updateLayerButtonVisibility(); }
@@ -133,22 +133,25 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void bindPreviewUseCase() { /* ... */ Log.d(TAG, "bindPreviewUseCase called"); if (cameraProvider == null) { Log.e(TAG, "CameraProvider not initialized."); return; } try { cameraProvider.unbindAll(); Log.d(TAG, "Previous use cases unbound."); CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build(); previewUseCase = new Preview.Builder().build(); previewView.post(() -> { Log.d(TAG, "Setting SurfaceProvider for Preview"); previewUseCase.setSurfaceProvider(previewView.getSurfaceProvider()); }); Log.d(TAG, "Binding lifecycle..."); camera = cameraProvider.bindToLifecycle(this, cameraSelector, previewUseCase); if (camera != null) { Log.i(TAG, "Camera bound to lifecycle successfully."); setupCameraZoomSliderState(camera.getCameraInfo(), camera.getCameraControl()); } else { Log.e(TAG, "Failed to get Camera instance after binding."); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); } } catch (Exception e) { Log.e(TAG, "Error binding preview use case: ", e); Toast.makeText(this, "Не удалось привязать камеру", Toast.LENGTH_SHORT).show(); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); } }
     private void setupCameraZoomSliderState(CameraInfo cameraInfo, CameraControl cameraControl) { /* ... */ Log.d(TAG, "setupCameraZoomSliderState called"); LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState(); zoomStateLiveData.observe(this, zoomState -> { if (zoomState == null) { Log.w(TAG, "ZoomState is null. Disabling camera zoom slider and link switch."); zoomSlider.setValue(0f); zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); if(isZoomLinked) { isZoomLinked = false; linkZoomSwitch.setChecked(false); } } else { Log.i(TAG, "ZoomState updated. Ratio: " + zoomState.getZoomRatio() + ", Linear: " + zoomState.getLinearZoom()); if (!zoomSlider.isPressed()) { zoomSlider.setValue(zoomState.getLinearZoom()); } zoomSlider.setEnabled(true); zoomSlider.setVisibility(View.VISIBLE); linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled()); if (isZoomLinked && overlayImageView.getVisibility() == View.VISIBLE) { applyLinkedZoom(zoomState.getZoomRatio()); } } }); ZoomState currentZoomState = zoomStateLiveData.getValue(); if (currentZoomState == null) { zoomSlider.setEnabled(false); zoomSlider.setVisibility(View.INVISIBLE); linkZoomSwitch.setEnabled(false); } else { zoomSlider.setValueFrom(0f); zoomSlider.setValueTo(1f); zoomSlider.setStepSize(0.01f); zoomSlider.setValue(currentZoomState.getLinearZoom()); zoomSlider.setEnabled(true); zoomSlider.setVisibility(View.VISIBLE); linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled()); } }
 
-    // <<< ИЗМЕНЕН Слушатель слайдера камеры >>>
+    // <<< ИСПРАВЛЕН Слушатель слайдера камеры >>>
     private void setupCameraZoomSliderListener() {
         zoomSlider.addOnChangeListener((slider, value, fromUser) -> {
             if (camera != null && fromUser) {
                 Log.v(TAG, "Camera zoom slider CHANGED by user: " + value);
-                // Устанавливаем линейный зум. Обновление картинки произойдет в Observer'е ZoomState
                 camera.getCameraControl().setLinearZoom(value);
             }
         });
-        // Используем OnSliderTouchListener для определения конца взаимодействия
-        zoomSlider.addOnSliderTouchListener(new BaseOnSliderTouchListener<Slider>() {
-            @SuppressLint("RestrictedApi") // Необходимо для BaseOnSliderTouchListener
+        // Используем правильный интерфейс OnSliderTouchListener
+        zoomSlider.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
+            @Override
+            public void onStartTrackingTouch(@NonNull Slider slider) {
+                // Ничего не делаем при начале касания
+            }
+
             @Override
             public void onStopTrackingTouch(@NonNull Slider slider) {
+                // Обновляем базу, когда пользователь отпустил слайдер
                 if (isZoomLinked) {
-                    // Обновляем базу после того, как пользователь отпустил слайдер
                     updateZoomLinkBaseline();
                     Log.d(TAG,"Zoom link baseline updated after slider touch stop.");
                 }
