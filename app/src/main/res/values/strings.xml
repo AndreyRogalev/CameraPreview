@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">CameraPreview</string>
+    <!-- ДОБАВЬТЕ ЭТУ СТРОКУ -->
+    <string name="overlay_image_description">Overlay Image</string>
 </resources>
