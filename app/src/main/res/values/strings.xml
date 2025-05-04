@@ -1,5 +1,7 @@
+<!-- Полный путь к файлу: /root/CameraPreview/app/src/main/res/values/strings.xml -->
 <resources>
     <string name="app_name">CameraPreview</string>
-    <!-- ДОБАВЬТЕ ЭТУ СТРОКУ -->
     <string name="overlay_image_description">Overlay Image</string>
+    <!-- ДОБАВЬТЕ ЭТУ СТРОКУ -->
+    <string name="controls_label">Управление</string>
 </resources>

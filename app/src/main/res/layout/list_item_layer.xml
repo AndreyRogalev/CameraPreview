@@ -1,3 +1,4 @@
+<!-- Полный путь к файлу: /root/CameraPreview/app/src/main/res/layout/list_item_layer.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -5,8 +6,8 @@
     android:orientation="horizontal"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp"
+    android:paddingTop="4dp"  <!-- Уменьшено с 8dp -->
+    android:paddingBottom="4dp" <!-- Уменьшено с 8dp -->
     android:gravity="center_vertical"
     android:background="?android:attr/selectableItemBackground">
 
