@@ -1,4 +1,3 @@
-<!-- Полный путь к файлу: /root/CameraPreview/app/src/main/res/layout/activity_main.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -8,7 +7,6 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- Предпросмотр камеры -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -19,7 +17,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:scaleType="fillCenter" />
 
-    <!-- ImageView для наложения -->
     <ImageView
         android:id="@+id/overlayImageView"
         android:layout_width="0dp"
@@ -32,7 +29,6 @@
         android:visibility="gone"
         android:contentDescription="@string/overlay_image_description" />
 
-    <!-- Чекбокс видимости контролов (остается видимым) -->
     <CheckBox
         android:id="@+id/controlsVisibilityCheckbox"
         android:layout_width="wrap_content"
@@ -40,7 +36,7 @@
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
         android:text="Управление"
-        android:checked="true" <!-- По умолчанию включен -->
+        android:checked="true"
         android:textColor="@android:color/white"
         android:shadowColor="@android:color/black"
         android:shadowDx="1"
@@ -49,16 +45,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Группа элементов управления, которые будут скрываться/показываться -->
-    <!-- НЕ включаем сюда controlsVisibilityCheckbox -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="load_image_button,pencilModeSwitch,layerSelectButton,zoom_slider,transparency_slider"
-        android:visibility="visible" /> <!-- Начальное состояние - видимы -->
+        android:visibility="visible" />
 
-    <!-- Кнопка Загрузить -->
     <Button
         android:id="@+id/load_image_button"
         android:layout_width="wrap_content"
@@ -69,7 +62,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Переключатель Карандашного режима -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/pencilModeSwitch"
         android:layout_width="wrap_content"
@@ -85,7 +77,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/load_image_button" />
 
-    <!-- Кнопка выбора слоев -->
      <Button
         android:id="@+id/layerSelectButton"
         android:layout_width="wrap_content"
@@ -96,7 +87,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/pencilModeSwitch"/>
 
-    <!-- Ползунок ПРОЗРАЧНОСТИ ИЗОБРАЖЕНИЯ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/transparency_slider"
         android:layout_width="0dp"
@@ -113,7 +103,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Ползунок ЗУМА КАМЕРЫ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"
