@@ -7,7 +7,6 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- Предпросмотр камеры -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -18,7 +17,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:scaleType="fillCenter" />
 
-    <!-- ImageView для наложения (растягиваем на весь экран) -->
     <ImageView
         android:id="@+id/overlayImageView"
         android:layout_width="0dp"
@@ -31,7 +29,6 @@
         android:visibility="gone"
         android:contentDescription="@string/overlay_image_description" />
 
-    <!-- Кнопка Загрузить -->
     <Button
         android:id="@+id/load_image_button"
         android:layout_width="wrap_content"
@@ -42,7 +39,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Ползунок ПРОЗРАЧНОСТИ ИЗОБРАЖЕНИЯ (внизу) -->
     <com.google.android.material.slider.Slider
         android:id="@+id/transparency_slider"
         android:layout_width="0dp"
@@ -54,13 +50,12 @@
         android:valueTo="1.0"
         android:stepSize="0.05"
         android:value="1.0"
-        android:visibility="gone" <!-- СКРЫТ ПО УМОЛЧАНИЮ -->
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Ползунок ЗУМА КАМЕРЫ (над ползунком прозрачности) -->
-    <!-- УБРАНЫ ВНУТРЕННИЕ КОММЕНТАРИИ -->
+    <!-- Вот проблемный слайдер -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"
@@ -75,5 +70,6 @@
         app:layout_constraintBottom_toTopOf="@id/transparency_slider"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+        <!-- Убедитесь, что здесь нет никаких лишних символов -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
