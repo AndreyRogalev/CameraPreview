@@ -1,4 +1,3 @@
-<!-- Полный путь к файлу: /root/CameraPreview/app/src/main/res/layout/activity_main.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -32,14 +31,12 @@
         android:visibility="gone"
         android:contentDescription="@string/overlay_image_description" />
 
-    <!-- Группа элементов управления, которые можно будет скрыть/показать -->
+    <!-- Группа элементов управления -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,layerSelectButton,zoom_slider,transparency_slider"
-        /> <!-- Добавим сюда ID новых элементов -->
-
+        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,layerSelectButton,zoom_slider,transparency_slider" />
 
     <!-- Кнопка Загрузить -->
     <Button
@@ -68,18 +65,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/load_image_button" />
 
-    <!-- Кнопка выбора слоев (появляется в карандашном режиме) -->
+    <!-- Кнопка выбора слоев -->
      <Button
         android:id="@+id/layerSelectButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:text="Слои"
-        android:visibility="gone" <!-- Скрыта по умолчанию -->
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/pencilModeSwitch"/>
 
-    <!-- Ползунок ПРОЗРАЧНОСТИ ИЗОБРАЖЕНИЯ (внизу) -->
+    <!-- Ползунок ПРОЗРАЧНОСТИ ИЗОБРАЖЕНИЯ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/transparency_slider"
         android:layout_width="0dp"
@@ -96,7 +93,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Ползунок ЗУМА КАМЕРЫ (над ползунком прозрачности) -->
+    <!-- Ползунок ЗУМА КАМЕРЫ -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"
