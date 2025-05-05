@@ -16,7 +16,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:scaleType="fillCenter" /> <!-- или другой scaleType по вашему усмотрению -->
+        app:scaleType="fillCenter" />
 
     <!-- Наложение изображения (заполняет весь экран, изначально скрыто) -->
     <ImageView
@@ -29,7 +29,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:scaleType="matrix"
         android:visibility="gone"
-        android:contentDescription="@string/overlay_image_description" /> <!-- Определите эту строку в strings.xml -->
+        android:contentDescription="@string/overlay_image_description" />
 
     <!-- Основной чекбокс видимости элементов управления (справа сверху) -->
     <CheckBox
@@ -38,7 +38,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
-        android:text="@string/controls_label" <!-- Определите эту строку в strings.xml -->
+        android:text="@string/controls_label"
         android:checked="true"
         android:textColor="@android:color/white"
         android:shadowColor="@android:color/black"
@@ -54,15 +54,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="16dp"
-        android:layout_marginTop="8dp" <!-- Небольшой отступ сверху -->
-        android:text="Показать Слои" <!-- Или @string/show_layers_hidden -->
+        android:layout_marginTop="8dp"
+        android:text="Показать Слои"
         android:checked="false"
         android:textColor="@android:color/white"
         android:shadowColor="@android:color/black"
         android:shadowDx="1"
         android:shadowDy="1"
         android:shadowRadius="1"
-        android:visibility="gone"  <!-- Изначально скрыт -->
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/controlsVisibilityCheckbox" />
 
@@ -72,7 +72,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="load_image_button,pencilModeSwitch,layerSelectButton,linkZoomSwitch,zoom_slider,transparency_slider"
-        android:visibility="visible" /> <!-- Изначально видимы, т.к. controlsVisibilityCheckbox включен -->
+        android:visibility="visible" />
 
     <!-- Кнопка Загрузить (слева сверху) -->
     <Button
@@ -107,9 +107,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp" <!-- Добавлен отступ -->
+        android:layout_marginTop="8dp"
         android:text="Слои"
-        android:visibility="gone" <!-- Управляется из кода -->
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/pencilModeSwitch"/>
 
@@ -125,8 +125,8 @@
         android:valueTo="1.0"
         android:stepSize="0.05"
         android:value="1.0"
-        android:visibility="gone" <!-- Изначально скрыт -->
-        android:enabled="false" <!-- Изначально выключен -->
+        android:visibility="gone"
+        android:enabled="false"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
@@ -142,7 +142,7 @@
         android:valueFrom="0.0"
         android:valueTo="1.0"
         android:stepSize="0.01"
-        android:visibility="visible" <!-- Изначально виден, но может быть выключен камерой -->
+        android:visibility="visible"
         app:layout_constraintBottom_toTopOf="@id/transparency_slider"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -160,7 +160,7 @@
         android:shadowDx="1"
         android:shadowDy="1"
         android:shadowRadius="1"
-        android:enabled="false" <!-- Изначально выключен (до загрузки картинки) -->
+        android:enabled="false"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
 
