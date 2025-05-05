@@ -166,14 +166,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         layerSelectButton = findViewById(R.id.layerSelectButton);
         controlsGroup = findViewById(R.id.controlsGroup);
         controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox);
-        showLayersWhenControlsHiddenCheckbox = findViewById(R.id.showLayersWhenControlsHiddenCheckbox); // <<< НАЙТИ НОВЫЙ ЧЕКБОКС
+        showLayersWhenControlsHiddenCheckbox = findViewById(R.id.showLayersWhenControlsHiddenCheckbox);
         linkZoomSwitch = findViewById(R.id.linkZoomSwitch);
 
         // --- Null Check ---
         if (previewView == null || zoomSlider == null || loadImageButton == null ||
                 overlayImageView == null || transparencySlider == null || pencilModeSwitch == null ||
                 layerSelectButton == null || controlsGroup == null || controlsVisibilityCheckbox == null ||
-                showLayersWhenControlsHiddenCheckbox == null || // <<< ДОБАВИТЬ В ПРОВЕРКУ
+                showLayersWhenControlsHiddenCheckbox == null ||
                 linkZoomSwitch == null) {
             Log.e(TAG, "onCreate: One or more views not found! Check layout file IDs.");
             Toast.makeText(this, "Критическая ошибка: Не найдены элементы интерфейса", Toast.LENGTH_LONG).show();
@@ -186,10 +186,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         // --- Initial Setup ---
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleListener());
         overlayImageView.setOnTouchListener(this);
-        overlayImageView.setScaleType(ImageView.ScaleType.MATRIX); // Important for matrix transforms
+        overlayImageView.setScaleType(ImageView.ScaleType.MATRIX);
 
         layerVisibility = new boolean[GRAY_LEVELS];
-        Arrays.fill(layerVisibility, true); // All layers visible initially
+        Arrays.fill(layerVisibility, true);
 
         // --- Setup Listeners ---
         setupCameraZoomSliderListener();
@@ -197,25 +197,25 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupTransparencySliderListener();
         setupPencilModeSwitchListener();
         setupLayerSelectButtonListener();
-        setupControlsVisibilityListener(); // Этот слушатель обновлен
+        setupControlsVisibilityListener(); // Обновлен для вызова updateShowLayersCheckboxVisibility
         setupShowLayersWhenControlsHiddenCheckboxListener();
         setupLinkZoomSwitchListener();
 
         // --- UI Initial State ---
-        previewView.post(this::hideSystemUI); // Hide system bars after layout
+        previewView.post(this::hideSystemUI);
         overlayImageView.setVisibility(View.GONE);
         transparencySlider.setVisibility(View.GONE);
         transparencySlider.setEnabled(false);
-        linkZoomSwitch.setEnabled(false); // Disabled until image loaded
-        showLayersWhenControlsHiddenCheckbox.setVisibility(View.GONE); // Hide new checkbox initially
+        linkZoomSwitch.setEnabled(false);
 
         // Set initial visibility of controls group based on checkbox
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
         controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : "");
-        showLayersWhenControlsHiddenCheckbox.setVisibility(controlsInitiallyVisible ? View.GONE : View.VISIBLE); // Show/hide based on main checkbox
 
-        updateLayerButtonVisibility(); // Set initial state of the layers button
+        // Устанавливаем начальную видимость всех зависимых элементов
+        updateShowLayersCheckboxVisibility(); // <<< УСТАНОВИТЬ НАЧАЛЬНОЕ СОСТОЯНИЕ
+        updateLayerButtonVisibility();
 
         // --- Permissions and Camera Start ---
         if (allPermissionsGranted()) {
@@ -231,28 +231,28 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (v.getId() != R.id.overlayImageView) return false; // Only handle touches on the overlay
+        if (v.getId() != R.id.overlayImageView) return false;
 
         ImageView view = (ImageView) v;
-        scaleGestureDetector.onTouchEvent(event); // Pass event to ScaleGestureDetector first
+        scaleGestureDetector.onTouchEvent(event);
 
         PointF curr = new PointF(event.getX(), event.getY());
 
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
-                savedMatrix.set(matrix); // Save current matrix state
-                start.set(curr); // Record starting touch point
+                savedMatrix.set(matrix);
+                start.set(curr);
                 mode = DRAG;
                 Log.v(TAG, "onTouch: DOWN, mode=DRAG");
                 break;
 
             case MotionEvent.ACTION_POINTER_DOWN:
-                oldDist = spacing(event); // Calculate initial distance between pointers
-                oldAngle = rotation(event); // Calculate initial angle
+                oldDist = spacing(event);
+                oldAngle = rotation(event);
                 Log.v(TAG, "onTouch: POINTER_DOWN, oldDist=" + oldDist);
-                if (oldDist > 10f) { // Threshold to avoid noise
-                    savedMatrix.set(matrix); // Save matrix state before starting zoom/rotate
-                    midPoint(mid, event); // Calculate midpoint between pointers
+                if (oldDist > 10f) {
+                    savedMatrix.set(matrix);
+                    midPoint(mid, event);
                     mode = ZOOM;
                     Log.v(TAG, "onTouch: mode=ZOOM");
                 }
@@ -266,22 +266,20 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
             case MotionEvent.ACTION_MOVE:
                 if (mode == DRAG) {
-                    matrix.set(savedMatrix); // Restore saved state
-                    matrix.postTranslate(curr.x - start.x, curr.y - start.y); // Apply translation
+                    matrix.set(savedMatrix);
+                    matrix.postTranslate(curr.x - start.x, curr.y - start.y);
                 } else if (mode == ZOOM && event.getPointerCount() >= 2) {
                     float newDist = spacing(event);
                     float newAngle = rotation(event);
                     Log.v(TAG, "onTouch: MOVE, mode=ZOOM, newDist=" + newDist);
-                    if (newDist > 10f) { // Threshold
-                        matrix.set(savedMatrix); // Restore saved state
-                        float scale = newDist / oldDist; // Calculate scale factor
-                        matrix.postScale(scale, scale, mid.x, mid.y); // Apply scaling around midpoint
+                    if (newDist > 10f) {
+                        matrix.set(savedMatrix);
+                        float scale = newDist / oldDist;
+                        matrix.postScale(scale, scale, mid.x, mid.y);
 
-                        // <<< ВРАЩЕНИЕ ВОССТАНОВЛЕНО >>>
                         float deltaAngle = newAngle - oldAngle;
-                        matrix.postRotate(deltaAngle, mid.x, mid.y); // Apply rotation around midpoint
+                        matrix.postRotate(deltaAngle, mid.x, mid.y); // Вращение
 
-                        // If zoom is linked, update baseline on manual image scale
                         if (isZoomLinked) {
                             updateZoomLinkBaseline();
                             Log.d(TAG, "Manual image zoom updated zoom link baseline.");
@@ -291,8 +289,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 break;
         }
 
-        view.setImageMatrix(matrix); // Apply the calculated matrix to the ImageView
-        return true; // Indicate touch event was handled
+        view.setImageMatrix(matrix);
+        return true;
     }
 
     // Helper: Calculate distance between two fingers
@@ -320,12 +318,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         return (float) Math.toDegrees(radians);
     }
 
-    // ScaleGestureDetector listener (required, but main scaling logic is in onTouch)
+    // ScaleGestureDetector listener
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            // Scale is handled in ACTION_MOVE with matrix.postScale
-            return true; // Indicate event was handled
+            return true;
         }
     }
 
@@ -348,31 +345,39 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         transparencySlider.addOnChangeListener((slider, value, fromUser) -> {
             if (overlayImageView.getVisibility() == View.VISIBLE && fromUser) {
                 Log.v(TAG, "Transparency slider changed: " + value);
-                overlayImageView.setAlpha(value); // Set ImageView transparency
+                overlayImageView.setAlpha(value);
             }
         });
     }
 
+    // <<< ИЗМЕНЕН >>>
     private void setupPencilModeSwitchListener() {
         pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.i(TAG, "Pencil Mode Switch changed: " + isChecked);
             isPencilMode = isChecked;
+
             if (isChecked) {
-                // Only create grayscale if needed and original exists
                 if (grayscaleBitmap == null && originalBitmap != null && !originalBitmap.isRecycled()) {
                     createGrayscaleBitmap();
                 }
             } else {
-                // Clean up grayscale resources when switching off
                 recycleBitmap(grayscaleBitmap);
                 grayscaleBitmap = null;
-                recycleBitmap(finalCompositeBitmap); // Also recycle composite if it exists
+                recycleBitmap(finalCompositeBitmap);
                 finalCompositeBitmap = null;
             }
+
+            // Обновляем видимость чекбокса "Показать слои (скрытый режим)"
+            updateShowLayersCheckboxVisibility(); // <<< ВЫЗОВ ДОБАВЛЕН
+
+            // Обновляем видимость самой кнопки "Слои"
             updateLayerButtonVisibility();
+
+            // Обновляем отображаемое изображение
             updateImageDisplay();
         });
     }
+
 
     private void setupLayerSelectButtonListener() {
         layerSelectButton.setOnClickListener(v -> {
@@ -381,19 +386,26 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
+    // <<< ИЗМЕНЕН >>>
     private void setupControlsVisibilityListener() {
         controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
             controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : "");
-            showLayersWhenControlsHiddenCheckbox.setVisibility(isChecked ? View.GONE : View.VISIBLE);
+
+            // Обновляем видимость чекбокса "Показать слои (скрытый режим)"
+            updateShowLayersCheckboxVisibility(); // <<< ВЫЗЫВАЕМ НОВЫЙ МЕТОД
+
+            // Обновляем видимость самой кнопки "Слои"
             updateLayerButtonVisibility();
         });
     }
 
+
     private void setupShowLayersWhenControlsHiddenCheckboxListener() {
         showLayersWhenControlsHiddenCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "Show Layers When Controls Hidden Checkbox changed: " + isChecked);
+            // При изменении этого чекбокса нужно только обновить видимость кнопки Слои
             updateLayerButtonVisibility();
         });
     }
@@ -469,6 +481,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 if (isPencilMode) {
                     createGrayscaleBitmap();
                 }
+                // Обновляем видимость после загрузки картинки
+                updateShowLayersCheckboxVisibility();
                 updateLayerButtonVisibility();
                 updateImageDisplay();
                 overlayImageView.setVisibility(View.VISIBLE);
@@ -680,6 +694,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (isPencilMode && pencilModeSwitch != null) {
             isPencilMode = false;
             pencilModeSwitch.setChecked(false);
+            // Вызов updateShowLayersCheckboxVisibility произойдет из листенера pencilModeSwitch
         }
         if (isZoomLinked && linkZoomSwitch != null) {
             isZoomLinked = false;
@@ -688,6 +703,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (linkZoomSwitch != null) {
             linkZoomSwitch.setEnabled(false);
         }
+        // Обновляем видимость после очистки
+        updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
     }
 
@@ -735,23 +752,56 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
+    // <<< НОВЫЙ МЕТОД ДЛЯ УПРАВЛЕНИЯ ВИДИМОСТЬЮ ЧЕКБОКСА >>>
+    private void updateShowLayersCheckboxVisibility() {
+        if (controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null || pencilModeSwitch == null) {
+            // Не можем обновить, если view не найдены
+            return;
+        }
+
+        boolean controlsHidden = !controlsVisibilityCheckbox.isChecked();
+        boolean pencilModeActive = isPencilMode; // Используем существующий флаг
+
+        // Чекбокс "Показать слои (скрытый режим)" виден ТОЛЬКО если
+        // контролы скрыты И режим карандаша активен
+        boolean shouldBeVisible = controlsHidden && pencilModeActive;
+
+        showLayersWhenControlsHiddenCheckbox.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
+
+        Log.d(TAG, "updateShowLayersCheckboxVisibility: controlsHidden=" + controlsHidden
+                + ", pencilModeActive=" + pencilModeActive + " -> shouldBeVisible=" + shouldBeVisible);
+
+        // Важно: Если чекбокс становится невидимым, его также нужно "снять" (установить в false),
+        // чтобы он не влиял на видимость кнопки слоев, когда снова станет видимым.
+        if (!shouldBeVisible && showLayersWhenControlsHiddenCheckbox.isChecked()) {
+             Log.d(TAG, "updateShowLayersCheckboxVisibility: Checkbox becoming hidden, unchecking it.");
+            showLayersWhenControlsHiddenCheckbox.setChecked(false);
+            // Обновляем кнопку слоев, т.к. состояние чекбокса изменилось програмно
+            updateLayerButtonVisibility();
+        }
+    }
+
 
     // --- Layer Button Visibility Logic ---
-
     private void updateLayerButtonVisibility() {
         if (layerSelectButton == null || controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null) {
             Log.e(TAG, "Cannot update layer button visibility - one or more required views are null.");
             return;
         }
+        // Базовое условие: режим карандаша включен И изображение загружено
         boolean canShowLayersBaseCondition = isPencilMode && (originalBitmap != null && !originalBitmap.isRecycled());
+
         boolean shouldBeVisible;
         if (controlsVisibilityCheckbox.isChecked()) {
+            // Контролы ВИДИМЫ: Кнопка "Слои" видна ТОЛЬКО если базовое условие выполнено
             shouldBeVisible = canShowLayersBaseCondition;
             Log.d(TAG, "updateLayerButtonVisibility (Controls VISIBLE): BaseCondition=" + canShowLayersBaseCondition + " -> shouldBeVisible=" + shouldBeVisible);
         } else {
+            // Контролы СКРЫТЫ: Кнопка "Слои" видна ТОЛЬКО если базовое условие выполнено
+            // И при этом отмечен (и ВИДИМ) чекбокс showLayersWhenControlsHiddenCheckbox
             shouldBeVisible = canShowLayersBaseCondition && showLayersWhenControlsHiddenCheckbox.isChecked();
             Log.d(TAG, "updateLayerButtonVisibility (Controls HIDDEN): BaseCondition=" + canShowLayersBaseCondition
-                    + ", ShowHiddenCheckbox=" + showLayersWhenControlsHiddenCheckbox.isChecked()
+                    + ", ShowHiddenCheckboxChecked=" + showLayersWhenControlsHiddenCheckbox.isChecked()
                     + " -> shouldBeVisible=" + shouldBeVisible);
         }
         layerSelectButton.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
