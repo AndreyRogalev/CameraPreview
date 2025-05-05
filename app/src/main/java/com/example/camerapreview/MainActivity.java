@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
         // --- Setup Listeners ---
         setupCameraZoomSliderListener();
-        setupLoadImageButtonListener();
+        setupLoadImageButtonListener(); // <-- Исправленный вызов
         setupTransparencySliderListener();
         setupPencilModeSwitchListener();
         setupLayerSelectButtonListener();
@@ -332,11 +332,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     // --- UI Listeners Setup ---
 
+    // <<< ИСПРАВЛЕННЫЙ МЕТОД >>>
     private void setupLoadImageButtonListener() {
         loadImageButton.setOnClickListener(v -> {
             Log.i(TAG, "Load image button pressed.");
             try {
-                pickImageLauncher.launch("image/*"); // Launch image picker
+                pickImageLauncher.launch("image/\\*"); // Launch image picker
             } catch (Exception e) {
                 Log.e(TAG, "Error launching image picker", e);
                 Toast.makeText(this, "Не удалось открыть галерею", Toast.LENGTH_SHORT).show();
