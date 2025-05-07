@@ -5,6 +5,7 @@ package com.example.camerapreview;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+// import android.content.Context; // Уже есть
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -37,7 +38,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull; // <<< Убедимся, что импорт есть
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.camera.core.Camera;
@@ -55,12 +56,21 @@ import androidx.lifecycle.Observer;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-// import com.google.android.material.slider.BaseOnSliderTouchListener; // <<< УДАЛЕН ИМПОРТ
-import com.google.android.material.slider.Slider; // <<< Убедимся, что импорт есть
+import com.google.android.material.slider.Slider;
 import com.google.common.util.concurrent.ListenableFuture;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -69,15 +79,16 @@ import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity implements View.OnTouchListener, LayerAdapter.OnLayerVisibilityChangedListener {
 
-    // --- Константы и переменные ---
     private static final String TAG = "CameraPreviewApp";
+    private static final String PARAMS_FILE_NAME_INTERNAL = "image_params_internal.json"; // Для старых API
+    private static final String PARAMS_FILE_NAME_SUGGESTION = "image_params.json"; // Для SAF
+
     private static final String[] PENCIL_HARDNESS = { "9H", "8H", "7H", "6H", "5H", "4H", "3H", "2H", "H", "F", "HB", "B", "2B", "3B", "4B", "5B", "6B", "7B", "8B", "9B" };
     private static final int GRAY_LEVELS = PENCIL_HARDNESS.length;
     private static final float GRAY_RANGE_SIZE = 256.0f / GRAY_LEVELS;
     private static final int NONE = 0;
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
-    private static final float MIN_ZOOM_RATIO_FOR_LINK = 1.01f;
 
     private PreviewView previewView;
     private Slider zoomSlider;
@@ -86,9 +97,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private Slider transparencySlider;
     private SwitchCompat pencilModeSwitch;
     private Button layerSelectButton;
+    private Button saveParamsButton; // <<< НОВАЯ КНОПКА
+    private Button loadParamsButton; // <<< НОВАЯ КНОПКА
     private Group controlsGroup;
     private CheckBox controlsVisibilityCheckbox;
-    private CheckBox showLayersWhenControlsHiddenCheckbox; // <<< НОВЫЙ ЧЕКБОКС
+    private CheckBox showLayersWhenControlsHiddenCheckbox;
     private SwitchCompat linkZoomSwitch;
 
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
@@ -115,7 +128,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private float initialCameraZoomRatio = 1f;
     private float initialImageScale = 1f;
 
-    // --- ActivityResultLaunchers ---
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
                 boolean allPermissionsGranted = true;
@@ -123,7 +135,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                     if (granted != null) {
                         allPermissionsGranted &= granted;
                     } else {
-                        allPermissionsGranted = false; // Treat null as not granted
+                        allPermissionsGranted = false;
                     }
                 }
                 if (allPermissionsGranted) {
@@ -132,7 +144,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 } else {
                     Log.w(TAG, "Camera permission not granted.");
                     Toast.makeText(this, "Разрешение на камеру не предоставлено", Toast.LENGTH_SHORT).show();
-                    // Consider disabling camera related features or closing the app
                 }
             });
 
@@ -140,15 +151,36 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) {
                     Log.i(TAG, "Image URI selected: " + uri);
-                    recycleAllBitmaps(); // Recycle previous bitmaps before loading new one
+                    recycleAllBitmaps();
                     loadOriginalBitmap(uri);
                 } else {
                     Log.i(TAG, "No image selected by user.");
                 }
             });
 
+    // Лаунчер для выбора файла параметров (для загрузки)
+    private final ActivityResultLauncher<String[]> openParamsFileLauncher =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+                if (uri != null) {
+                    Log.i(TAG, "Params file URI selected for loading: " + uri);
+                    loadParametersFromFile(uri); // Используем общий метод
+                } else {
+                    Log.i(TAG, "No params file selected by user for loading.");
+                }
+            });
 
-    // --- onCreate ---
+    // Лаунчер для сохранения файла параметров (Android 10+)
+    private final ActivityResultLauncher<String> createParamsFileLauncher =
+            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+                if (uri != null) {
+                    Log.i(TAG, "Params file URI selected for saving: " + uri);
+                    saveParametersToFile(uri); // Используем общий метод
+                } else {
+                    Log.i(TAG, "No params file URI selected by user for saving.");
+                }
+            });
+
+
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,7 +188,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setContentView(R.layout.activity_main);
         Log.d(TAG, "onCreate: Activity starting");
 
-        // --- Find Views ---
         previewView = findViewById(R.id.previewView);
         zoomSlider = findViewById(R.id.zoom_slider);
         loadImageButton = findViewById(R.id.load_image_button);
@@ -164,26 +195,27 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         transparencySlider = findViewById(R.id.transparency_slider);
         pencilModeSwitch = findViewById(R.id.pencilModeSwitch);
         layerSelectButton = findViewById(R.id.layerSelectButton);
+        saveParamsButton = findViewById(R.id.saveParamsButton); // <<< НАЙТИ
+        loadParamsButton = findViewById(R.id.loadParamsButton); // <<< НАЙТИ
         controlsGroup = findViewById(R.id.controlsGroup);
         controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox);
         showLayersWhenControlsHiddenCheckbox = findViewById(R.id.showLayersWhenControlsHiddenCheckbox);
         linkZoomSwitch = findViewById(R.id.linkZoomSwitch);
 
-        // --- Null Check ---
         if (previewView == null || zoomSlider == null || loadImageButton == null ||
                 overlayImageView == null || transparencySlider == null || pencilModeSwitch == null ||
-                layerSelectButton == null || controlsGroup == null || controlsVisibilityCheckbox == null ||
+                layerSelectButton == null || saveParamsButton == null || loadParamsButton == null || // <<< ПРОВЕРИТЬ
+                controlsGroup == null || controlsVisibilityCheckbox == null ||
                 showLayersWhenControlsHiddenCheckbox == null ||
                 linkZoomSwitch == null) {
             Log.e(TAG, "onCreate: One or more views not found! Check layout file IDs.");
             Toast.makeText(this, "Критическая ошибка: Не найдены элементы интерфейса", Toast.LENGTH_LONG).show();
-            finish(); // Exit if UI is broken
+            finish();
             return;
         } else {
             Log.d(TAG, "onCreate: All views found");
         }
 
-        // --- Initial Setup ---
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleListener());
         overlayImageView.setOnTouchListener(this);
         overlayImageView.setScaleType(ImageView.ScaleType.MATRIX);
@@ -191,43 +223,39 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         layerVisibility = new boolean[GRAY_LEVELS];
         Arrays.fill(layerVisibility, true);
 
-        // --- Setup Listeners ---
         setupCameraZoomSliderListener();
         setupLoadImageButtonListener();
         setupTransparencySliderListener();
         setupPencilModeSwitchListener();
         setupLayerSelectButtonListener();
-        setupControlsVisibilityListener(); // Обновлен для вызова updateShowLayersCheckboxVisibility
+        setupSaveParamsButtonListener(); // <<< ДОБАВИТЬ
+        setupLoadParamsButtonListener(); // <<< ДОБАВИТЬ
+        setupControlsVisibilityListener();
         setupShowLayersWhenControlsHiddenCheckboxListener();
         setupLinkZoomSwitchListener();
 
-        // --- UI Initial State ---
         previewView.post(this::hideSystemUI);
         overlayImageView.setVisibility(View.GONE);
         transparencySlider.setVisibility(View.GONE);
         transparencySlider.setEnabled(false);
         linkZoomSwitch.setEnabled(false);
 
-        // Set initial visibility of controls group based on checkbox
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
         controlsVisibilityCheckbox.setText(controlsInitiallyVisible ? getString(R.string.controls_label) : "");
 
-        // Устанавливаем начальную видимость всех зависимых элементов
-        updateShowLayersCheckboxVisibility(); // <<< УСТАНОВИТЬ НАЧАЛЬНОЕ СОСТОЯНИЕ
+        updateSaveLoadParamsButtonsVisibility(); // <<< ОБНОВИТЬ
+        updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
 
-        // --- Permissions and Camera Start ---
         if (allPermissionsGranted()) {
             startCamera();
         } else {
             requestPermissions();
         }
-
         Log.d(TAG, "onCreate: Setup complete");
     }
 
-    // --- Touch Handling for ImageView ---
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouch(View v, MotionEvent event) {
@@ -243,27 +271,24 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 savedMatrix.set(matrix);
                 start.set(curr);
                 mode = DRAG;
-                Log.v(TAG, "onTouch: DOWN, mode=DRAG");
                 break;
-
             case MotionEvent.ACTION_POINTER_DOWN:
                 oldDist = spacing(event);
                 oldAngle = rotation(event);
-                Log.v(TAG, "onTouch: POINTER_DOWN, oldDist=" + oldDist);
                 if (oldDist > 10f) {
                     savedMatrix.set(matrix);
                     midPoint(mid, event);
                     mode = ZOOM;
-                    Log.v(TAG, "onTouch: mode=ZOOM");
                 }
                 break;
-
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
-                Log.v(TAG, "onTouch: UP/POINTER_UP, mode=NONE");
                 mode = NONE;
+                if (isZoomLinked) { // Если зум связан, обновить базу после ручного изменения
+                    updateZoomLinkBaseline();
+                    Log.d(TAG, "Manual image transform finished. Zoom link baseline updated.");
+                }
                 break;
-
             case MotionEvent.ACTION_MOVE:
                 if (mode == DRAG) {
                     matrix.set(savedMatrix);
@@ -271,29 +296,22 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 } else if (mode == ZOOM && event.getPointerCount() >= 2) {
                     float newDist = spacing(event);
                     float newAngle = rotation(event);
-                    Log.v(TAG, "onTouch: MOVE, mode=ZOOM, newDist=" + newDist);
                     if (newDist > 10f) {
                         matrix.set(savedMatrix);
                         float scale = newDist / oldDist;
                         matrix.postScale(scale, scale, mid.x, mid.y);
-
                         float deltaAngle = newAngle - oldAngle;
-                        matrix.postRotate(deltaAngle, mid.x, mid.y); // Вращение
-
-                        if (isZoomLinked) {
-                            updateZoomLinkBaseline();
-                            Log.d(TAG, "Manual image zoom updated zoom link baseline.");
-                        }
+                        matrix.postRotate(deltaAngle, mid.x, mid.y);
+                        // Не обновляем здесь updateZoomLinkBaseline при каждом ACTION_MOVE,
+                        // чтобы не было слишком частых пересчетов. Обновим в ACTION_UP.
                     }
                 }
                 break;
         }
-
         view.setImageMatrix(matrix);
         return true;
     }
 
-    // Helper: Calculate distance between two fingers
     private float spacing(MotionEvent event) {
         if (event.getPointerCount() < 2) return 0f;
         float x = event.getX(0) - event.getX(1);
@@ -301,7 +319,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         return (float) Math.sqrt(x * x + y * y);
     }
 
-    // Helper: Calculate midpoint between two fingers
     private void midPoint(PointF point, MotionEvent event) {
         if (event.getPointerCount() < 2) return;
         float x = event.getX(0) + event.getX(1);
@@ -309,7 +326,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         point.set(x / 2, y / 2);
     }
 
-    // Helper: Calculate rotation angle between two fingers
     private float rotation(MotionEvent event) {
         if (event.getPointerCount() < 2) return 0f;
         double delta_x = (event.getX(0) - event.getX(1));
@@ -318,16 +334,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         return (float) Math.toDegrees(radians);
     }
 
-    // ScaleGestureDetector listener
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
             return true;
         }
     }
-
-
-    // --- UI Listeners Setup ---
 
     private void setupLoadImageButtonListener() {
         loadImageButton.setOnClickListener(v -> {
@@ -350,12 +362,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    // <<< ИЗМЕНЕН >>>
     private void setupPencilModeSwitchListener() {
         pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.i(TAG, "Pencil Mode Switch changed: " + isChecked);
             isPencilMode = isChecked;
-
             if (isChecked) {
                 if (grayscaleBitmap == null && originalBitmap != null && !originalBitmap.isRecycled()) {
                     createGrayscaleBitmap();
@@ -366,18 +376,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 recycleBitmap(finalCompositeBitmap);
                 finalCompositeBitmap = null;
             }
-
-            // Обновляем видимость чекбокса "Показать слои (скрытый режим)"
-            updateShowLayersCheckboxVisibility(); // <<< ВЫЗОВ ДОБАВЛЕН
-
-            // Обновляем видимость самой кнопки "Слои"
+            updateShowLayersCheckboxVisibility();
             updateLayerButtonVisibility();
-
-            // Обновляем отображаемое изображение
             updateImageDisplay();
         });
     }
-
 
     private void setupLayerSelectButtonListener() {
         layerSelectButton.setOnClickListener(v -> {
@@ -386,26 +389,60 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    // <<< ИЗМЕНЕН >>>
+    // <<< НОВЫЙ СЛУШАТЕЛЬ ДЛЯ КНОПКИ СОХРАНЕНИЯ ПАРАМЕТРОВ >>>
+    private void setupSaveParamsButtonListener() {
+        saveParamsButton.setOnClickListener(v -> {
+            Log.d(TAG, "Save Parameters button clicked");
+            if (originalBitmap != null && !originalBitmap.isRecycled()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Для Android 10+ используем Storage Access Framework
+                    // Предлагаем имя файла по умолчанию
+                    createParamsFileLauncher.launch(PARAMS_FILE_NAME_SUGGESTION);
+                } else {
+                    // Для более старых версий сохраняем в приватный каталог
+                    File internalFile = new File(getFilesDir(), PARAMS_FILE_NAME_INTERNAL);
+                    saveParametersToFile(internalFile); // Используем перегруженный метод
+                }
+            } else {
+                Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    // <<< НОВЫЙ СЛУШАТЕЛЬ ДЛЯ КНОПКИ ЗАГРУЗКИ ПАРАМЕТРОВ >>>
+    private void setupLoadParamsButtonListener() {
+        loadParamsButton.setOnClickListener(v -> {
+            Log.d(TAG, "Load Parameters button clicked");
+            if (originalBitmap != null && !originalBitmap.isRecycled()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    openParamsFileLauncher.launch(new String[]{"application/json"});
+                } else {
+                    File internalFile = new File(getFilesDir(), PARAMS_FILE_NAME_INTERNAL);
+                    if (internalFile.exists()) {
+                        loadParametersFromFile(internalFile); // Используем перегруженный метод
+                    } else {
+                        Toast.makeText(this, "Файл параметров не найден: " + PARAMS_FILE_NAME_INTERNAL, Toast.LENGTH_SHORT).show();
+                    }
+                }
+            } else {
+                Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     private void setupControlsVisibilityListener() {
         controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
             controlsGroup.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : "");
-
-            // Обновляем видимость чекбокса "Показать слои (скрытый режим)"
-            updateShowLayersCheckboxVisibility(); // <<< ВЫЗЫВАЕМ НОВЫЙ МЕТОД
-
-            // Обновляем видимость самой кнопки "Слои"
+            updateShowLayersCheckboxVisibility();
             updateLayerButtonVisibility();
         });
     }
 
-
     private void setupShowLayersWhenControlsHiddenCheckboxListener() {
         showLayersWhenControlsHiddenCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "Show Layers When Controls Hidden Checkbox changed: " + isChecked);
-            // При изменении этого чекбокса нужно только обновить видимость кнопки Слои
             updateLayerButtonVisibility();
         });
     }
@@ -421,56 +458,13 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    // --- Zoom Linking Logic ---
-
-    private void updateZoomLinkBaseline() {
-        if (camera == null || overlayImageView.getDrawable() == null || matrix == null) {
-            Log.w(TAG, "Cannot update zoom link baseline - camera, image or matrix not ready.");
-            if(isZoomLinked && linkZoomSwitch != null) {
-                isZoomLinked = false;
-                linkZoomSwitch.setChecked(false);
-            }
-            if(linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
-            return;
-        }
-
-        LiveData<ZoomState> zoomStateLiveData = camera.getCameraInfo().getZoomState();
-        ZoomState currentZoomState = zoomStateLiveData.getValue();
-
-        if (currentZoomState != null) {
-            initialCameraZoomRatio = currentZoomState.getZoomRatio();
-            if (initialCameraZoomRatio < 1.0f) initialCameraZoomRatio = 1.0f;
-        } else {
-            initialCameraZoomRatio = 1.0f;
-            Log.w(TAG,"Could not get current camera zoom state for baseline. Using 1.0f.");
-        }
-
-        initialImageScale = getMatrixScale(matrix);
-
-        Log.i(TAG, "Zoom Link Baseline UPDATED. Initial Cam Ratio: " + initialCameraZoomRatio + ", Initial Img Scale: " + initialImageScale);
-    }
-
-    private float getMatrixScale(Matrix matrix) {
-        float[] values = new float[9];
-        matrix.getValues(values);
-        float scaleX = values[Matrix.MSCALE_X];
-        float skewY = values[Matrix.MSKEW_Y];
-        return (float) Math.sqrt(scaleX * scaleX + skewY * skewY);
-    }
-
-    // --- Image Loading and Processing ---
-
     private void loadOriginalBitmap(Uri imageUri) {
         Log.d(TAG, "loadOriginalBitmap started for URI: " + imageUri);
-
         try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) {
             if (inputStream == null) throw new IOException("Unable to open input stream for URI: " + imageUri);
-
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-
             originalBitmap = BitmapFactory.decodeStream(inputStream, null, options);
-
             if (originalBitmap != null) {
                 Log.i(TAG, "Original bitmap loaded: " + originalBitmap.getWidth() + "x" + originalBitmap.getHeight());
                 linkZoomSwitch.setEnabled(true);
@@ -478,10 +472,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                     isZoomLinked = false;
                     linkZoomSwitch.setChecked(false);
                 }
-                if (isPencilMode) {
-                    createGrayscaleBitmap();
-                }
-                // Обновляем видимость после загрузки картинки
+                if (isPencilMode) createGrayscaleBitmap();
+                updateSaveLoadParamsButtonsVisibility(); // <<< ОБНОВИТЬ
                 updateShowLayersCheckboxVisibility();
                 updateLayerButtonVisibility();
                 updateImageDisplay();
@@ -497,23 +489,239 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             }
         } catch (OutOfMemoryError oom) {
             Log.e(TAG, "Out of Memory Error loading original bitmap", oom);
-            Toast.makeText(this, "Недостаточно памяти для загрузки изображения", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Недостаточно памяти", Toast.LENGTH_LONG).show();
             clearImageRelatedData();
         } catch (Exception e) {
-            Log.e(TAG, "Error loading original bitmap from URI: " + imageUri, e);
-            Toast.makeText(this, "Ошибка загрузки изображения", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error loading original bitmap", e);
+            Toast.makeText(this, "Ошибка загрузки", Toast.LENGTH_SHORT).show();
             clearImageRelatedData();
         }
     }
 
+    private void clearImageRelatedData() {
+        Log.d(TAG, "Clearing image related data");
+        recycleAllBitmaps();
+        if (overlayImageView != null) {
+            overlayImageView.setImageBitmap(null);
+            overlayImageView.setVisibility(View.GONE);
+        }
+        if (transparencySlider != null) {
+            transparencySlider.setValue(1.0f);
+            transparencySlider.setVisibility(View.GONE);
+            transparencySlider.setEnabled(false);
+        }
+        if (isPencilMode && pencilModeSwitch != null) {
+            isPencilMode = false;
+            pencilModeSwitch.setChecked(false);
+        }
+        if (isZoomLinked && linkZoomSwitch != null) {
+            isZoomLinked = false;
+            linkZoomSwitch.setChecked(false);
+        }
+        if (linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
+        updateSaveLoadParamsButtonsVisibility(); // <<< ОБНОВИТЬ
+        updateShowLayersCheckboxVisibility();
+        updateLayerButtonVisibility();
+    }
+
+    private void updateSaveLoadParamsButtonsVisibility() {
+        boolean imageLoaded = (originalBitmap != null && !originalBitmap.isRecycled());
+        if (saveParamsButton != null) saveParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
+        if (loadParamsButton != null) loadParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
+    }
+
+    // <<< --- ЛОГИКА СОХРАНЕНИЯ И ЗАГРУЗКИ ПАРАМЕТРОВ --- >>>
+
+    // Для SAF (Android 10+)
+    private void saveParametersToFile(Uri uri) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
+        JSONObject paramsJson = createParamsJson();
+        if (paramsJson == null) return;
+
+        try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(
+                getContentResolver().openOutputStream(uri))) {
+            outputStreamWriter.write(paramsJson.toString(4)); // 4 для pretty print
+            Toast.makeText(this, "Параметры сохранены", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to URI: " + uri);
+        } catch (IOException | JSONException e) {
+            Log.e(TAG, "Error writing parameters to URI", e);
+            Toast.makeText(this, "Ошибка сохранения параметров", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Для внутреннего хранилища (старые API)
+    private void saveParametersToFile(File file) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
+        JSONObject paramsJson = createParamsJson();
+        if (paramsJson == null) return;
+
+        try (FileOutputStream fos = new FileOutputStream(file);
+             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fos)) {
+            outputStreamWriter.write(paramsJson.toString(4));
+            Toast.makeText(this, "Параметры сохранены (внутр.)", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to internal file: " + file.getAbsolutePath());
+        } catch (IOException | JSONException e) {
+            Log.e(TAG, "Error writing parameters to internal file", e);
+            Toast.makeText(this, "Ошибка сохранения параметров (внутр.)", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private JSONObject createParamsJson() {
+        JSONObject paramsJson = new JSONObject();
+        try {
+            // 1. Матрица
+            float[] matrixValues = new float[9];
+            matrix.getValues(matrixValues);
+            JSONArray matrixJsonArray = new JSONArray();
+            for (float value : matrixValues) {
+                matrixJsonArray.put(value);
+            }
+            paramsJson.put("matrix_values", matrixJsonArray);
+
+            // 2. Прозрачность
+            paramsJson.put("alpha", overlayImageView.getAlpha());
+
+            // 3. Связанный зум
+            paramsJson.put("zoom_linked", isZoomLinked);
+            if (isZoomLinked) {
+                paramsJson.put("initial_camera_zoom_ratio_for_link", initialCameraZoomRatio);
+                paramsJson.put("initial_image_scale_for_link", initialImageScale);
+            }
+            return paramsJson;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating JSON for parameters", e);
+            Toast.makeText(this, "Ошибка создания JSON", Toast.LENGTH_SHORT).show();
+            return null;
+        }
+    }
+
+    // Для SAF (Android 10+)
+    private void loadParametersFromFile(Uri uri) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null || originalBitmap == null) {
+            Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try (InputStream inputStream = getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+            }
+            applyParamsFromJson(stringBuilder.toString());
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading parameters from URI", e);
+            Toast.makeText(this, "Ошибка чтения файла параметров", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // Для внутреннего хранилища (старые API)
+    private void loadParametersFromFile(File file) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null || originalBitmap == null) {
+             Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try (FileInputStream fis = new FileInputStream(file);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(fis))) {
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+            }
+            applyParamsFromJson(stringBuilder.toString());
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading parameters from internal file", e);
+            Toast.makeText(this, "Ошибка чтения файла параметров (внутр.)", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void applyParamsFromJson(String jsonString) {
+        try {
+            JSONObject paramsJson = new JSONObject(jsonString);
+
+            // 1. Матрица
+            JSONArray matrixJsonArray = paramsJson.getJSONArray("matrix_values");
+            if (matrixJsonArray.length() == 9) {
+                float[] matrixValues = new float[9];
+                for (int i = 0; i < 9; i++) {
+                    matrixValues[i] = (float) matrixJsonArray.getDouble(i);
+                }
+                matrix.setValues(matrixValues);
+                overlayImageView.setImageMatrix(matrix);
+                savedMatrix.set(matrix); // Важно для последующих ручных трансформаций
+            }
+
+            // 2. Прозрачность
+            float alpha = (float) paramsJson.getDouble("alpha");
+            overlayImageView.setAlpha(alpha);
+            transparencySlider.setValue(alpha);
+
+            // 3. Связанный зум
+            boolean zoomLinkedFromFile = paramsJson.getBoolean("zoom_linked");
+            isZoomLinked = zoomLinkedFromFile; // Устанавливаем перед вызовом setChecked
+            linkZoomSwitch.setChecked(zoomLinkedFromFile);
+
+            if (zoomLinkedFromFile) {
+                // Восстанавливаем или пересчитываем базу для связанного зума
+                if (paramsJson.has("initial_camera_zoom_ratio_for_link") && paramsJson.has("initial_image_scale_for_link")) {
+                    initialCameraZoomRatio = (float) paramsJson.getDouble("initial_camera_zoom_ratio_for_link");
+                    initialImageScale = (float) paramsJson.getDouble("initial_image_scale_for_link");
+                    Log.i(TAG, "Restored zoom link baseline from file: CamRatio=" + initialCameraZoomRatio + ", ImgScale=" + initialImageScale);
+                } else {
+                    updateZoomLinkBaseline(); // Если в файле нет, пересчитать по текущим
+                    Log.w(TAG, "Zoom link baseline data not in file, re-calculating.");
+                }
+            }
+
+            Toast.makeText(this, "Параметры загружены", Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "Parameters loaded and applied successfully.");
+
+        } catch (JSONException e) {
+            Log.e(TAG, "Error parsing JSON from parameters file", e);
+            Toast.makeText(this, "Ошибка разбора JSON параметров", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ... (остальные методы без изменений: updateZoomLinkBaseline, getMatrixScale, createGrayscaleBitmap, и т.д.)
+
+    private void updateZoomLinkBaseline() {
+        if (camera == null || overlayImageView.getDrawable() == null || matrix == null) {
+            Log.w(TAG, "Cannot update zoom link baseline - camera, image or matrix not ready.");
+            if(isZoomLinked && linkZoomSwitch != null) {
+                isZoomLinked = false;
+                linkZoomSwitch.setChecked(false);
+            }
+            if(linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
+            return;
+        }
+        LiveData<ZoomState> zoomStateLiveData = camera.getCameraInfo().getZoomState();
+        ZoomState currentZoomState = zoomStateLiveData.getValue();
+        if (currentZoomState != null) {
+            initialCameraZoomRatio = currentZoomState.getZoomRatio();
+            if (initialCameraZoomRatio < 1.0f) initialCameraZoomRatio = 1.0f;
+        } else {
+            initialCameraZoomRatio = 1.0f;
+            Log.w(TAG,"Could not get current camera zoom state for baseline. Using 1.0f.");
+        }
+        initialImageScale = getMatrixScale(matrix);
+        Log.i(TAG, "Zoom Link Baseline UPDATED. Initial Cam Ratio: " + initialCameraZoomRatio + ", Initial Img Scale: " + initialImageScale);
+    }
+
+    private float getMatrixScale(Matrix matrix) {
+        float[] values = new float[9];
+        matrix.getValues(values);
+        float scaleX = values[Matrix.MSCALE_X];
+        float skewY = values[Matrix.MSKEW_Y];
+        return (float) Math.sqrt(scaleX * scaleX + skewY * skewY);
+    }
+
     private void createGrayscaleBitmap() {
         if (originalBitmap == null || originalBitmap.isRecycled()) {
-            Log.w(TAG, "createGrayscaleBitmap: Original bitmap is null or recycled. Cannot create grayscale.");
+            Log.w(TAG, "createGrayscaleBitmap: Original bitmap is null or recycled.");
             return;
         }
         Log.d(TAG, "Creating grayscale bitmap...");
         recycleBitmap(grayscaleBitmap);
-
         try {
             grayscaleBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(grayscaleBitmap);
@@ -523,10 +731,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             grayPaint.setColorFilter(new ColorMatrixColorFilter(cm));
             grayPaint.setAntiAlias(true);
             canvas.drawBitmap(originalBitmap, 0, 0, grayPaint);
-            Log.d(TAG, "Grayscale bitmap created successfully.");
+            Log.d(TAG, "Grayscale bitmap created.");
         } catch (OutOfMemoryError oom) {
-            Log.e(TAG, "Out of Memory Error creating grayscale bitmap", oom);
-            Toast.makeText(this, "Недостаточно памяти для обработки изображения", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Out of memory creating grayscale bitmap", oom);
+            Toast.makeText(this, "Недостаточно памяти", Toast.LENGTH_SHORT).show();
             grayscaleBitmap = null;
         } catch (Exception e) {
             Log.e(TAG, "Error creating grayscale bitmap", e);
@@ -536,19 +744,18 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     private Bitmap createCompositeGrayscaleBitmap() {
         if (grayscaleBitmap == null || grayscaleBitmap.isRecycled()) {
-            Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available or recycled.");
+            Log.w(TAG, "createCompositeGrayscaleBitmap: Grayscale bitmap is not available.");
             return null;
         }
         if (layerVisibility == null) {
-            Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility array is null.");
+            Log.e(TAG, "createCompositeGrayscaleBitmap: layerVisibility is null.");
             return null;
         }
-        Log.d(TAG, "Creating composite grayscale bitmap based on layer visibility...");
+        Log.d(TAG, "Creating composite grayscale bitmap...");
         int width = grayscaleBitmap.getWidth();
         int height = grayscaleBitmap.getHeight();
         int[] grayPixels = new int[width * height];
         int[] finalPixels = new int[width * height];
-
         try {
             grayscaleBitmap.getPixels(grayPixels, 0, width, 0, 0, width, height);
             boolean anyLayerVisible = false;
@@ -563,16 +770,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                     finalPixels[j] = Color.TRANSPARENT;
                 }
             }
-            if (!anyLayerVisible) {
-                Log.d(TAG, "No layers are visible, composite bitmap will be fully transparent.");
-            }
+            if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be transparent.");
             Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             composite.setPixels(finalPixels, 0, width, 0, 0, width, height);
-            Log.d(TAG, "Composite grayscale bitmap created successfully.");
+            Log.d(TAG, "Composite grayscale bitmap created.");
             return composite;
         } catch (OutOfMemoryError oom) {
-            Log.e(TAG, "Out of Memory Error during grayscale compositing", oom);
-            Toast.makeText(this, "Недостаточно памяти для композитинга слоев", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Out of memory during grayscale compositing", oom);
+            Toast.makeText(this, "Недостаточно памяти", Toast.LENGTH_SHORT).show();
             return null;
         } catch (Exception e) {
             Log.e(TAG, "Error during grayscale compositing", e);
@@ -595,7 +800,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             finalCompositeBitmap = createCompositeGrayscaleBitmap();
             bitmapToShow = finalCompositeBitmap;
             if (bitmapToShow == null) {
-                Log.w(TAG,"Composite bitmap creation failed or returned null, showing original bitmap as fallback.");
+                Log.w(TAG,"Composite bitmap creation failed, showing original as fallback.");
                 bitmapToShow = originalBitmap;
             }
         } else {
@@ -603,23 +808,19 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         }
         if (bitmapToShow != null && !bitmapToShow.isRecycled()) {
             overlayImageView.setImageBitmap(bitmapToShow);
-            overlayImageView.setImageMatrix(matrix);
+            overlayImageView.setImageMatrix(matrix); // Re-apply current matrix
             overlayImageView.setVisibility(View.VISIBLE);
             Log.d(TAG, "Bitmap set to overlayImageView.");
         } else {
-            Log.w(TAG, "updateImageDisplay: bitmapToShow is null or recycled unexpectedly. Clearing overlay.");
+            Log.w(TAG, "bitmapToShow is null or recycled. Clearing overlay & hiding.");
             clearImageRelatedData();
         }
     }
 
-
-    // --- Layer Selection Dialog ---
-
     private void showLayerSelectionDialog() {
         Log.d(TAG, "Showing layer selection dialog.");
-        if (PENCIL_HARDNESS == null || layerVisibility == null || PENCIL_HARDNESS.length != layerVisibility.length) {
-            Log.e(TAG, "Layer data (PENCIL_HARDNESS or layerVisibility) is invalid or mismatched.");
-            Toast.makeText(this, "Ошибка данных слоев", Toast.LENGTH_SHORT).show();
+        if (PENCIL_HARDNESS == null || layerVisibility == null) {
+            Log.e(TAG, "Layer data is null.");
             return;
         }
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -628,24 +829,22 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         builder.setView(dialogView);
         RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView);
         if (recyclerView == null) {
-            Log.e(TAG, "RecyclerView with ID 'layersRecyclerView' not found in dialog_layer_select.xml!");
-            Toast.makeText(this,"Ошибка интерфейса диалога слоев", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "RecyclerView not found!");
+            Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show();
             return;
         }
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this);
         recyclerView.setAdapter(adapter);
-        builder.setPositiveButton("OK", (dialog, which) -> {
-            dialog.dismiss();
-        });
+        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
         builder.setNeutralButton("Все", (dialog, which) -> {
             Arrays.fill(layerVisibility, true);
-            adapter.notifyDataSetChanged();
+            if (adapter != null) adapter.notifyDataSetChanged();
             updateImageDisplay();
         });
         builder.setNegativeButton("Ничего", (dialog, which) -> {
             Arrays.fill(layerVisibility, false);
-            adapter.notifyDataSetChanged();
+            if (adapter != null) adapter.notifyDataSetChanged();
             updateImageDisplay();
         });
         AlertDialog dialog = builder.create();
@@ -654,16 +853,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     @Override
     public void onLayerVisibilityChanged(int position, boolean isVisible) {
-        Log.d(TAG, "onLayerVisibilityChanged callback - Position: " + position + ", Visible: " + isVisible);
+        Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible);
         updateImageDisplay();
     }
 
-
-    // --- Memory Management and UI State Cleanup ---
-
     private void recycleBitmap(Bitmap bitmap) {
         if (bitmap != null && !bitmap.isRecycled()) {
-            Log.v(TAG, "Recycling bitmap: " + bitmap);
             bitmap.recycle();
         }
     }
@@ -676,57 +871,21 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         grayscaleBitmap = null;
         recycleBitmap(finalCompositeBitmap);
         finalCompositeBitmap = null;
-        Log.d(TAG, "All bitmaps recycled and references set to null.");
+        Log.d(TAG, "All bitmaps recycled.");
     }
-
-    private void clearImageRelatedData() {
-        Log.d(TAG, "Clearing image related data and resetting UI elements");
-        recycleAllBitmaps();
-        if(overlayImageView != null) {
-            overlayImageView.setImageBitmap(null);
-            overlayImageView.setVisibility(View.GONE);
-        }
-        if(transparencySlider != null) {
-            transparencySlider.setValue(1.0f);
-            transparencySlider.setVisibility(View.GONE);
-            transparencySlider.setEnabled(false);
-        }
-        if (isPencilMode && pencilModeSwitch != null) {
-            isPencilMode = false;
-            pencilModeSwitch.setChecked(false);
-            // Вызов updateShowLayersCheckboxVisibility произойдет из листенера pencilModeSwitch
-        }
-        if (isZoomLinked && linkZoomSwitch != null) {
-            isZoomLinked = false;
-            linkZoomSwitch.setChecked(false);
-        }
-        if (linkZoomSwitch != null) {
-            linkZoomSwitch.setEnabled(false);
-        }
-        // Обновляем видимость после очистки
-        updateShowLayersCheckboxVisibility();
-        updateLayerButtonVisibility();
-    }
-
-
-    // --- Image Matrix Reset ---
 
     private void resetImageMatrix() {
-        Log.d(TAG, "Resetting image matrix to fit view");
+        Log.d(TAG, "Resetting image matrix");
         if (overlayImageView == null) return;
         matrix.reset();
         overlayImageView.post(() -> {
-            if (overlayImageView == null || overlayImageView.getDrawable() == null) {
-                Log.w(TAG, "Cannot reset matrix: ImageView or Drawable is null in post().");
-                return;
-            }
+            if (overlayImageView == null || overlayImageView.getDrawable() == null) return;
             int viewWidth = overlayImageView.getWidth();
             int viewHeight = overlayImageView.getHeight();
             int drawableWidth = overlayImageView.getDrawable().getIntrinsicWidth();
             int drawableHeight = overlayImageView.getDrawable().getIntrinsicHeight();
             if (viewWidth <= 0 || viewHeight <= 0 || drawableWidth <= 0 || drawableHeight <= 0) {
-                Log.w(TAG, "Cannot reset matrix, invalid dimensions: View(" + viewWidth + "x" + viewHeight +
-                        "), Drawable(" + drawableWidth + "x" + drawableHeight + ")");
+                Log.w(TAG, "Cannot reset matrix, invalid dimensions.");
                 return;
             }
             matrix.reset();
@@ -747,68 +906,42 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 updateZoomLinkBaseline();
                 Log.d(TAG, "Image matrix reset. Zoom link baseline updated.");
             } else {
-                Log.d(TAG, "Image matrix reset complete.");
+                Log.d(TAG, "Image matrix reset.");
             }
         });
     }
 
-    // <<< НОВЫЙ МЕТОД ДЛЯ УПРАВЛЕНИЯ ВИДИМОСТЬЮ ЧЕКБОКСА >>>
     private void updateShowLayersCheckboxVisibility() {
         if (controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null || pencilModeSwitch == null) {
-            // Не можем обновить, если view не найдены
             return;
         }
-
         boolean controlsHidden = !controlsVisibilityCheckbox.isChecked();
-        boolean pencilModeActive = isPencilMode; // Используем существующий флаг
-
-        // Чекбокс "Показать слои (скрытый режим)" виден ТОЛЬКО если
-        // контролы скрыты И режим карандаша активен
+        boolean pencilModeActive = isPencilMode;
         boolean shouldBeVisible = controlsHidden && pencilModeActive;
-
         showLayersWhenControlsHiddenCheckbox.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
-
         Log.d(TAG, "updateShowLayersCheckboxVisibility: controlsHidden=" + controlsHidden
                 + ", pencilModeActive=" + pencilModeActive + " -> shouldBeVisible=" + shouldBeVisible);
-
-        // Важно: Если чекбокс становится невидимым, его также нужно "снять" (установить в false),
-        // чтобы он не влиял на видимость кнопки слоев, когда снова станет видимым.
         if (!shouldBeVisible && showLayersWhenControlsHiddenCheckbox.isChecked()) {
              Log.d(TAG, "updateShowLayersCheckboxVisibility: Checkbox becoming hidden, unchecking it.");
             showLayersWhenControlsHiddenCheckbox.setChecked(false);
-            // Обновляем кнопку слоев, т.к. состояние чекбокса изменилось програмно
             updateLayerButtonVisibility();
         }
     }
 
-
-    // --- Layer Button Visibility Logic ---
     private void updateLayerButtonVisibility() {
         if (layerSelectButton == null || controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null) {
             Log.e(TAG, "Cannot update layer button visibility - one or more required views are null.");
             return;
         }
-        // Базовое условие: режим карандаша включен И изображение загружено
         boolean canShowLayersBaseCondition = isPencilMode && (originalBitmap != null && !originalBitmap.isRecycled());
-
         boolean shouldBeVisible;
         if (controlsVisibilityCheckbox.isChecked()) {
-            // Контролы ВИДИМЫ: Кнопка "Слои" видна ТОЛЬКО если базовое условие выполнено
             shouldBeVisible = canShowLayersBaseCondition;
-            Log.d(TAG, "updateLayerButtonVisibility (Controls VISIBLE): BaseCondition=" + canShowLayersBaseCondition + " -> shouldBeVisible=" + shouldBeVisible);
         } else {
-            // Контролы СКРЫТЫ: Кнопка "Слои" видна ТОЛЬКО если базовое условие выполнено
-            // И при этом отмечен (и ВИДИМ) чекбокс showLayersWhenControlsHiddenCheckbox
             shouldBeVisible = canShowLayersBaseCondition && showLayersWhenControlsHiddenCheckbox.isChecked();
-            Log.d(TAG, "updateLayerButtonVisibility (Controls HIDDEN): BaseCondition=" + canShowLayersBaseCondition
-                    + ", ShowHiddenCheckboxChecked=" + showLayersWhenControlsHiddenCheckbox.isChecked()
-                    + " -> shouldBeVisible=" + shouldBeVisible);
         }
         layerSelectButton.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
     }
-
-
-    // --- Android Lifecycle and System UI ---
 
     @Override
     protected void onDestroy() {
@@ -861,9 +994,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         }
     }
 
-
-    // --- CameraX Setup and Control ---
-
     private boolean allPermissionsGranted() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
@@ -895,42 +1025,32 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private void bindPreviewUseCase() {
         Log.d(TAG, "bindPreviewUseCase called");
         if (cameraProvider == null) {
-            Log.e(TAG, "CameraProvider not initialized. Cannot bind use case.");
-            Toast.makeText(this, "Провайдер камеры не готов", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "CameraProvider not initialized.");
             return;
         }
         try {
             cameraProvider.unbindAll();
             Log.d(TAG, "Previous use cases unbound.");
-            CameraSelector cameraSelector = new CameraSelector.Builder()
-                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                    .build();
+            CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build();
             previewUseCase = new Preview.Builder().build();
             previewView.post(() -> {
-                Log.d(TAG, "Setting SurfaceProvider for Preview use case");
+                Log.d(TAG, "Setting SurfaceProvider for Preview");
                 if (previewUseCase != null && previewView != null) {
                     previewUseCase.setSurfaceProvider(previewView.getSurfaceProvider());
-                } else {
-                    Log.w(TAG,"PreviewUseCase or PreviewView is null when trying to set SurfaceProvider");
                 }
             });
-            Log.d(TAG, "Binding camera to lifecycle...");
+            Log.d(TAG, "Binding lifecycle...");
             camera = cameraProvider.bindToLifecycle(this, cameraSelector, previewUseCase);
             if (camera != null) {
                 Log.i(TAG, "Camera bound to lifecycle successfully.");
                 setupCameraZoomSliderState(camera.getCameraInfo(), camera.getCameraControl());
             } else {
-                Log.e(TAG, "Failed to get Camera instance after binding. Camera is null.");
-                Toast.makeText(this, "Не удалось получить экземпляр камеры", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Failed to get Camera instance after binding.");
                 disableCameraUI();
             }
-        } catch (IllegalArgumentException e) {
-             Log.e(TAG, "Error binding preview use case: Invalid argument (e.g., no back camera?)", e);
-             Toast.makeText(this, "Ошибка конфигурации камеры", Toast.LENGTH_SHORT).show();
-             disableCameraUI();
         } catch (Exception e) {
-            Log.e(TAG, "Error binding preview use case", e);
-            Toast.makeText(this, "Не удалось привязать камеру к интерфейсу", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error binding preview use case: ", e);
+            Toast.makeText(this, "Не удалось привязать камеру", Toast.LENGTH_SHORT).show();
             disableCameraUI();
         }
     }
@@ -953,47 +1073,45 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         Log.d(TAG, "setupCameraZoomSliderState called");
         LiveData<ZoomState> zoomStateLiveData = cameraInfo.getZoomState();
         if (zoomStateLiveData == null) {
-             Log.e(TAG, "CameraInfo.getZoomState() returned null LiveData. Cannot observe zoom.");
+             Log.e(TAG, "CameraInfo.getZoomState() returned null LiveData.");
              disableCameraUI();
              return;
         }
         zoomStateLiveData.observe(this, zoomState -> {
             if (zoomState == null) {
-                Log.w(TAG, "Observed ZoomState is null. Disabling camera zoom slider and link switch.");
+                Log.w(TAG, "ZoomState is null.");
                 disableCameraUI();
             } else {
-                 Log.v(TAG, "ZoomState updated via LiveData. Ratio: " + zoomState.getZoomRatio() + ", Linear: " + zoomState.getLinearZoom());
-                 if (zoomSlider != null && !zoomSlider.isPressed()) {
+                Log.v(TAG, "ZoomState updated. Ratio: " + zoomState.getZoomRatio() + ", Linear: " + zoomState.getLinearZoom());
+                if (zoomSlider != null && !zoomSlider.isPressed()) {
                     zoomSlider.setValue(zoomState.getLinearZoom());
-                 }
-                 if (zoomSlider != null) {
+                }
+                if (zoomSlider != null) {
                     zoomSlider.setEnabled(true);
                     zoomSlider.setVisibility(View.VISIBLE);
-                 }
-                 if (linkZoomSwitch != null) {
+                }
+                if (linkZoomSwitch != null) {
                     linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled());
-                 }
-                 if (isZoomLinked && overlayImageView.getVisibility() == View.VISIBLE) {
+                }
+                if (isZoomLinked && overlayImageView.getVisibility() == View.VISIBLE) {
                     applyLinkedZoom(zoomState.getZoomRatio());
-                 }
+                }
             }
         });
         ZoomState currentZoomState = zoomStateLiveData.getValue();
         if (currentZoomState == null) {
-            Log.w(TAG, "Initial ZoomState value is null. Disabling controls.");
             disableCameraUI();
         } else {
-             Log.d(TAG, "Setting initial slider values from current ZoomState: Linear=" + currentZoomState.getLinearZoom());
-             if (zoomSlider != null) {
-                 zoomSlider.setValueFrom(0f);
-                 zoomSlider.setValueTo(1f);
-                 zoomSlider.setStepSize(0.01f);
-                 zoomSlider.setValue(currentZoomState.getLinearZoom());
-                 zoomSlider.setEnabled(true);
-                 zoomSlider.setVisibility(View.VISIBLE);
-             }
+            if (zoomSlider != null) {
+                zoomSlider.setValueFrom(0f);
+                zoomSlider.setValueTo(1f);
+                zoomSlider.setStepSize(0.01f);
+                zoomSlider.setValue(currentZoomState.getLinearZoom());
+                zoomSlider.setEnabled(true);
+                zoomSlider.setVisibility(View.VISIBLE);
+            }
             if (linkZoomSwitch != null) {
-                 linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled());
+                linkZoomSwitch.setEnabled(originalBitmap != null && !originalBitmap.isRecycled());
             }
         }
     }
@@ -1002,23 +1120,18 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (zoomSlider == null) return;
         zoomSlider.addOnChangeListener((slider, value, fromUser) -> {
             if (camera != null && fromUser) {
-                Log.v(TAG, "Camera zoom slider CHANGED by user: linear value=" + value);
+                Log.v(TAG, "Camera zoom slider CHANGED by user: " + value);
                 camera.getCameraControl().setLinearZoom(value);
             }
         });
         zoomSlider.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
-            @SuppressLint("RestrictedApi")
             @Override
-            public void onStartTrackingTouch(@NonNull Slider slider) {
-                 Log.v(TAG, "Slider touch STARTED");
-            }
-            @SuppressLint("RestrictedApi")
+            public void onStartTrackingTouch(@NonNull Slider slider) {}
             @Override
             public void onStopTrackingTouch(@NonNull Slider slider) {
-                 Log.v(TAG, "Slider touch STOPPED");
                 if (isZoomLinked) {
                     updateZoomLinkBaseline();
-                    Log.d(TAG,"Zoom link baseline updated after camera slider touch stop.");
+                    Log.d(TAG,"Zoom link baseline updated after slider touch stop.");
                 }
             }
         });
@@ -1026,11 +1139,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     private void applyLinkedZoom(float currentCameraZoomRatio) {
         if (initialCameraZoomRatio < 0.01f) {
-            Log.w(TAG, "Cannot apply linked zoom, initial camera zoom ratio is too small or zero.");
+            Log.w(TAG, "Cannot apply linked zoom, initial camera zoom ratio is too small.");
             return;
         }
         if (overlayImageView == null || overlayImageView.getDrawable() == null || matrix == null) {
-            Log.w(TAG, "Cannot apply linked zoom, overlay image/drawable/matrix is null.");
+            Log.w(TAG, "Cannot apply linked zoom, overlay image drawable or matrix is null.");
             return;
         }
         float cameraZoomFactor = currentCameraZoomRatio / initialCameraZoomRatio;
@@ -1041,9 +1154,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         float pivotY = overlayImageView.getHeight() / 2f;
         matrix.postScale(postScaleFactor, postScaleFactor, pivotX, pivotY);
         overlayImageView.setImageMatrix(matrix);
-        Log.v(TAG, "Applied linked zoom: CamRatioChangeFactor=" + String.format("%.2f", cameraZoomFactor) +
-                   ", TargetImgScale=" + String.format("%.2f", targetImageScale) +
-                   ", AppliedPostScale=" + String.format("%.2f", postScaleFactor));
+        Log.v(TAG, "Applied linked zoom: CamRatioChange=" + cameraZoomFactor + ", TargetImgScale=" + targetImageScale);
     }
 }
-// --- Конец кода файла ---
