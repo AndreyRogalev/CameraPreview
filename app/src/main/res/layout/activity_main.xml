@@ -100,7 +100,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/load_image_button" />
 
-    <!-- >>> НОВЫЙ ЧЕКБОКС ДЛЯ ЗЕЛЕНОГО РЕЖИМА <<< -->
+    <!-- ЧЕКБОКС ДЛЯ ЗЕЛЕНОГО РЕЖИМА -->
     <CheckBox
         android:id="@+id/greenModeCheckbox"
         android:layout_width="wrap_content"
@@ -113,7 +113,7 @@
         android:shadowDx="1"
         android:shadowDy="1"
         android:shadowRadius="1"
-        android:visibility="gone" <!-- Изначально скрыт, пока не включен pencilModeSwitch -->
+        android:visibility="gone" <!-- Комментарий здесь удален -->
         app:layout_constraintStart_toEndOf="@id/pencilModeSwitch"
         app:layout_constraintTop_toTopOf="@id/pencilModeSwitch"
         app:layout_constraintBottom_toBottomOf="@id/pencilModeSwitch"/>
