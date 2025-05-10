@@ -70,7 +70,7 @@
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider"
+        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider"
         android:visibility="visible" />
 
     <!-- Кнопка Загрузить -->
@@ -99,6 +99,25 @@
         android:shadowRadius="1"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/load_image_button" />
+
+    <!-- >>> НОВЫЙ ЧЕКБОКС ДЛЯ ЗЕЛЕНОГО РЕЖИМА <<< -->
+    <CheckBox
+        android:id="@+id/greenModeCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="Зел."
+        android:checked="false"
+        android:textColor="@android:color/white"
+        android:shadowColor="@android:color/black"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="1"
+        android:visibility="gone" <!-- Изначально скрыт, пока не включен pencilModeSwitch -->
+        app:layout_constraintStart_toEndOf="@id/pencilModeSwitch"
+        app:layout_constraintTop_toTopOf="@id/pencilModeSwitch"
+        app:layout_constraintBottom_toBottomOf="@id/pencilModeSwitch"/>
+
 
     <!-- Кнопка Слои -->
      <Button
