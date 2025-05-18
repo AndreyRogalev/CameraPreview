@@ -70,12 +70,13 @@
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider"
+        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider,panUpButton,panDownButton,panLeftButton,panRightButton,resetPanButton"
         android:visibility="visible" />
 
     <!-- Кнопка Загрузить -->
     <Button
         android:id="@+id/load_image_button"
+        style="?android:attr/buttonBarButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -122,6 +123,7 @@
     <!-- Кнопка Слои -->
      <Button
         android:id="@+id/layerSelectButton"
+        style="?android:attr/buttonBarButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -213,5 +215,66 @@
         android:enabled="false"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
+
+    <!-- Кнопки панорамирования -->
+    <Button
+        android:id="@+id/panUpButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="↑"
+        android:textSize="20sp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/panLeftButton" />
+
+    <Button
+        android:id="@+id/panLeftButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="←"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toStartOf="@+id/resetPanButton"
+        app:layout_constraintTop_toTopOf="@+id/resetPanButton"
+        app:layout_constraintBottom_toBottomOf="@+id/resetPanButton"/>
+
+    <Button
+        android:id="@+id/resetPanButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="О"
+        android:textSize="20sp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintEnd_toStartOf="@+id/panRightButton"
+        app:layout_constraintBottom_toTopOf="@+id/panDownButton"/>
+
+    <Button
+        android:id="@+id/panRightButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="→"
+        android:textSize="20sp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/resetPanButton"
+        app:layout_constraintBottom_toBottomOf="@+id/resetPanButton"/>
+
+    <Button
+        android:id="@+id/panDownButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="↓"
+        android:textSize="20sp"
+        android:layout_marginBottom="64dp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/panRightButton"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
