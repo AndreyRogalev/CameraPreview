@@ -1,11 +1,80 @@
 // --- Полный путь к файлу: /root/CameraPreview/app/src/main/java/com/example/camerapreview/MainActivity.java ---
 package com.example.camerapreview;
 
-// ... (импорты остаются теми же)
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
-// ... и так далее
+import android.content.DialogInterface;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.PointF;
+import android.graphics.PorterDuff;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.ImageView;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraControl;
+import androidx.camera.core.CameraInfo;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.Preview;
+import androidx.camera.core.ZoomState;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
+import androidx.constraintlayout.widget.Group;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.slider.Slider;
+import com.google.common.util.concurrent.ListenableFuture;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 
 public class MainActivity extends AppCompatActivity implements View.OnTouchListener, LayerAdapter.OnLayerVisibilityChangedListener {
 
@@ -13,13 +82,13 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final String PARAMS_FILE_NAME_INTERNAL = "image_params_internal.json";
     private static final String PARAMS_FILE_NAME_SUGGESTION = "image_params.json";
 
-    private static final String[] PENCIL_HARDNESS = { /* ... */ };
+    private static final String[] PENCIL_HARDNESS = { "9H", "8H", "7H", "6H", "5H", "4H", "3H", "2H", "H", "F", "HB", "B", "2B", "3B", "4B", "5B", "6B", "7B", "8B", "9B" };
     private static final int GRAY_LEVELS = PENCIL_HARDNESS.length;
     private static final float GRAY_RANGE_SIZE = 256.0f / GRAY_LEVELS;
     private static final int NONE = 0;
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
-    private static final float OVERLAY_PAN_STEP = 30f; // Шаг панорамирования для overlayImageView
+    private static final float OVERLAY_PAN_STEP = 30f;
 
     private PreviewView previewView;
     private Slider zoomSlider;
@@ -40,14 +109,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private Button panDownButton;
     private Button panLeftButton;
     private Button panRightButton;
-    private Button resetPanButton; // Эта кнопка теперь будет сбрасывать панорамирование overlayImageView
+    private Button resetPanButton;
 
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private ProcessCameraProvider cameraProvider;
     private Camera camera;
     private Preview previewUseCase;
 
-    private Matrix matrix = new Matrix(); // Матрица для overlayImageView
+    private Matrix matrix = new Matrix();
     private Matrix savedMatrix = new Matrix();
     private int mode = NONE;
     private PointF start = new PointF();
@@ -56,11 +125,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private float oldAngle = 0f;
     private ScaleGestureDetector scaleGestureDetector;
 
-    // Переменные для хранения текущего *дополнительного* смещения панорамирования overlayImageView кнопками
-    // Они будут добавляться к смещению от жеста DRAG
     private float panOverlayX = 0f;
     private float panOverlayY = 0f;
-
 
     private boolean isPencilMode = false;
     private boolean isGreenMode = false;
@@ -73,15 +139,55 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private float initialCameraZoomRatio = 1f;
     private float initialImageScale = 1f;
 
-    // --- ActivityResultLaunchers (без изменений) ---
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> { /* ... */ });
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
+                boolean allPermissionsGranted = true;
+                for (Boolean granted : result.values()) {
+                    if (granted != null) {
+                        allPermissionsGranted &= granted;
+                    } else {
+                        allPermissionsGranted = false;
+                    }
+                }
+                if (allPermissionsGranted) {
+                    Log.i(TAG, "Camera permission granted.");
+                    startCamera();
+                } else {
+                    Log.w(TAG, "Camera permission not granted.");
+                    Toast.makeText(this, "Разрешение на камеру не предоставлено", Toast.LENGTH_SHORT).show();
+                }
+            });
+
     private final ActivityResultLauncher<String> pickImageLauncher =
-            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> { /* ... */ });
+            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+                if (uri != null) {
+                    Log.i(TAG, "Image URI selected: " + uri);
+                    recycleAllBitmaps();
+                    loadOriginalBitmap(uri);
+                } else {
+                    Log.i(TAG, "No image selected by user.");
+                }
+            });
+
     private final ActivityResultLauncher<String[]> openParamsFileLauncher =
-            registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> { /* ... */ });
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+                if (uri != null) {
+                    Log.i(TAG, "Params file URI selected for loading: " + uri);
+                    loadParametersFromFile(uri);
+                } else {
+                    Log.i(TAG, "No params file selected by user for loading.");
+                }
+            });
+
     private final ActivityResultLauncher<String> createParamsFileLauncher =
-            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> { /* ... */ });
+            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+                if (uri != null) {
+                    Log.i(TAG, "Params file URI selected for saving: " + uri);
+                    saveParametersToFile(uri);
+                } else {
+                    Log.i(TAG, "No params file URI selected by user for saving.");
+                }
+            });
 
 
     @SuppressLint("ClickableViewAccessibility")
@@ -91,7 +197,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setContentView(R.layout.activity_main);
         Log.d(TAG, "onCreate: Activity starting");
 
-        // --- Find Views ---
         previewView = findViewById(R.id.previewView);
         zoomSlider = findViewById(R.id.zoom_slider);
         loadImageButton = findViewById(R.id.load_image_button);
@@ -137,7 +242,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         layerVisibility = new boolean[GRAY_LEVELS];
         Arrays.fill(layerVisibility, true);
 
-        // --- Setup Listeners ---
         setupCameraZoomSliderListener();
         setupLoadImageButtonListener();
         setupTransparencySliderListener();
@@ -151,7 +255,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupShowLayersWhenControlsHiddenCheckboxListener();
         setupLinkZoomSwitchListener();
 
-        // --- UI Initial State ---
         previewView.post(this::hideSystemUI);
         overlayImageView.setVisibility(View.GONE);
         transparencySlider.setVisibility(View.GONE);
@@ -167,10 +270,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
         updateGreenModeCheckboxVisibility();
-        // Сброс панорамирования overlayImageView при старте (matrix уже сброшена)
+        // resetImageMatrix() вызовется при первой загрузке изображения, он сбросит и panOverlay
         panOverlayX = 0f;
         panOverlayY = 0f;
-        // resetImageMatrix() позаботится о применении начальной матрицы
 
 
         if (allPermissionsGranted()) {
@@ -186,33 +288,35 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     public boolean onTouch(View v, MotionEvent event) {
         if (v.getId() != R.id.overlayImageView) return false;
         ImageView view = (ImageView) v;
-        scaleGestureDetector.onTouchEvent(event); // Для pinch-to-zoom
+        scaleGestureDetector.onTouchEvent(event);
         PointF curr = new PointF(event.getX(), event.getY());
-
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
-                savedMatrix.set(matrix); // Сохраняем текущую матрицу (включая панорамирование кнопками)
+                savedMatrix.set(matrix);
                 start.set(curr);
                 mode = DRAG;
+                Log.v(TAG, "onTouch: DOWN, mode=DRAG");
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 oldDist = spacing(event);
                 oldAngle = rotation(event);
+                Log.v(TAG, "onTouch: POINTER_DOWN, oldDist=" + oldDist);
                 if (oldDist > 10f) {
                     savedMatrix.set(matrix);
                     midPoint(mid, event);
                     mode = ZOOM;
+                    Log.v(TAG, "onTouch: mode=ZOOM");
                 }
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
-                // После завершения жеста, если зум связан, обновляем базу
+                Log.v(TAG, "onTouch: UP/POINTER_UP, mode=NONE");
                 if (isZoomLinked) {
                     updateZoomLinkBaseline();
+                    Log.d(TAG, "Manual image transform finished. Zoom link baseline updated.");
                 }
                 // Сбрасываем panOverlayX/Y, так как смещение уже "запеклось" в matrix через DRAG
-                // и будет сохранено в savedMatrix при следующем ACTION_DOWN
                 panOverlayX = 0;
                 panOverlayY = 0;
                 break;
@@ -223,6 +327,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 } else if (mode == ZOOM && event.getPointerCount() >= 2) {
                     float newDist = spacing(event);
                     float newAngle = rotation(event);
+                    Log.v(TAG, "onTouch: MOVE, mode=ZOOM, newDist=" + newDist);
                     if (newDist > 10f) {
                         matrix.set(savedMatrix);
                         float scale = newDist / oldDist;
@@ -237,10 +342,34 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         return true;
     }
 
-    private float spacing(MotionEvent event) { if (event.getPointerCount() < 2) return 0f; float x = event.getX(0) - event.getX(1); float y = event.getY(0) - event.getY(1); return (float) Math.sqrt(x * x + y * y); }
-    private void midPoint(PointF point, MotionEvent event) { if (event.getPointerCount() < 2) return; float x = event.getX(0) + event.getX(1); float y = event.getY(0) + event.getY(1); point.set(x / 2, y / 2); }
-    private float rotation(MotionEvent event) { if (event.getPointerCount() < 2) return 0f; double delta_x = (event.getX(0) - event.getX(1)); double delta_y = (event.getY(0) - event.getY(1)); double radians = Math.atan2(delta_y, delta_x); return (float) Math.toDegrees(radians); }
-    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener { @Override public boolean onScale(ScaleGestureDetector detector) { return true; } }
+    private float spacing(MotionEvent event) {
+        if (event.getPointerCount() < 2) return 0f;
+        float x = event.getX(0) - event.getX(1);
+        float y = event.getY(0) - event.getY(1);
+        return (float) Math.sqrt(x * x + y * y);
+    }
+
+    private void midPoint(PointF point, MotionEvent event) {
+        if (event.getPointerCount() < 2) return;
+        float x = event.getX(0) + event.getX(1);
+        float y = event.getY(0) + event.getY(1);
+        point.set(x / 2, y / 2);
+    }
+
+    private float rotation(MotionEvent event) {
+        if (event.getPointerCount() < 2) return 0f;
+        double delta_x = (event.getX(0) - event.getX(1));
+        double delta_y = (event.getY(0) - event.getY(1));
+        double radians = Math.atan2(delta_y, delta_x);
+        return (float) Math.toDegrees(radians);
+    }
+
+    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            return true;
+        }
+    }
 
     private void setupLoadImageButtonListener() {
         loadImageButton.setOnClickListener(v -> {
@@ -348,17 +477,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         panLeftButton.setOnClickListener(v -> panOverlayImageView(-OVERLAY_PAN_STEP, 0));
         panRightButton.setOnClickListener(v -> panOverlayImageView(OVERLAY_PAN_STEP, 0));
         resetPanButton.setOnClickListener(v -> {
-            // Сбрасываем только дополнительное панорамирование от кнопок,
-            // основная матрица (от жестов) сохраняется.
-            // Чтобы сбросить всё, нужно вызывать resetImageMatrix().
-            panOverlayX = 0f;
-            panOverlayY = 0f;
-            // Применяем текущую matrix (которая может содержать зум/вращение/DRAG-смещение)
-            // без дополнительного панорамирования кнопками
-            overlayImageView.setImageMatrix(matrix);
-            Log.d(TAG, "Overlay pan by buttons reset. Current matrix applied.");
-            // Если нужно полностью сбросить матрицу к начальному состоянию:
-            // resetImageMatrix();
+            // Сбрасываем матрицу к начальному состоянию (центрирование и масштабирование по размеру View)
+            // Это также сбросит любое панорамирование, сделанное кнопками или жестами.
+            resetImageMatrix();
+            Log.d(TAG, "Overlay matrix and pan reset by button.");
         });
     }
 
@@ -390,31 +512,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    // Метод для панорамирования overlayImageView кнопками
     private void panOverlayImageView(float dx, float dy) {
         if (overlayImageView != null && overlayImageView.getVisibility() == View.VISIBLE) {
-            panOverlayX += dx;
-            panOverlayY += dy;
-
-            Matrix tempMatrix = new Matrix(matrix); // Работаем с копией основной матрицы
-            tempMatrix.postTranslate(panOverlayX - (tempMatrix.getValues()[Matrix.MTRANS_X] - matrix.getValues()[Matrix.MTRANS_X]),
-                                     panOverlayY - (tempMatrix.getValues()[Matrix.MTRANS_Y] - matrix.getValues()[Matrix.MTRANS_Y]));
-            // Этот способ сложен. Проще так:
-            // Кнопки панорамирования должны добавлять смещение к *текущему* состоянию матрицы,
-            // которое уже включает DRAG-смещения.
-            // savedMatrix уже содержит состояние до начала DRAG или до последнего панорамирования кнопкой
-            // matrix содержит текущее состояние после DRAG.
-
-            // Правильнее будет:
-            // 1. Когда начинается DRAG (ACTION_DOWN), panOverlayX/Y сбрасываются, а текущая matrix сохраняется в savedMatrix.
-            // 2. При DRAG (ACTION_MOVE), matrix изменяется относительно savedMatrix.
-            // 3. При нажатии кнопок пана, мы добавляем смещение к matrix.
-            // Это уже сделано в onTouch (matrix.postTranslate)
-            // Поэтому здесь просто добавляем к текущей матрице.
             matrix.postTranslate(dx, dy);
             overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix); // Обновляем savedMatrix, чтобы следующий DRAG начался с этой точки
-
+            // savedMatrix.set(matrix); // Обновляем savedMatrix, чтобы следующий DRAG начался с этой точки
+                                   // или не обновляем, если хотим, чтобы DRAG начинался с точки ДО пана кнопками.
+                                   // Если обновляем, то сброс пана кнопками должен сбрасывать и savedMatrix к matrix.
+                                   // Пока оставим без обновления savedMatrix здесь, чтобы паны кнопками были "поверх" DRAG
             Log.d(TAG, "Panned overlay by (" + dx + ", " + dy + ")");
         }
     }
@@ -439,7 +544,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 updateGreenModeCheckboxVisibility();
                 updateShowLayersCheckboxVisibility();
                 updateLayerButtonVisibility();
-                updateImageDisplay(); // Важно перед resetImageMatrix, чтобы overlayImageView имел размеры
+                updateImageDisplay();
                 overlayImageView.setVisibility(View.VISIBLE);
                 transparencySlider.setVisibility(View.VISIBLE);
                 transparencySlider.setEnabled(true);
@@ -447,7 +552,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 overlayImageView.setAlpha(1.0f);
 
                 resetImageMatrix(); // Сбрасывает matrix и savedMatrix для overlayImageView
-                panOverlayX = 0f;   // Сбрасываем дополнительное панорамирование
+                panOverlayX = 0f;
                 panOverlayY = 0f;
 
                 Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show();
@@ -494,8 +599,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateGreenModeCheckboxVisibility();
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
-        panOverlayX = 0f; // Сбрасываем панорамирование overlay
+        panOverlayX = 0f;
         panOverlayY = 0f;
+        // resetImageMatrix(); // Можно вызвать, если нужно сбросить и матрицу, но обычно panOverlayX/Y достаточно
     }
 
     private void updateSaveLoadParamsButtonsVisibility() {
@@ -512,6 +618,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 getContentResolver().openOutputStream(uri))) {
             outputStreamWriter.write(paramsJson.toString(4));
             Toast.makeText(this, "Параметры сохранены", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to URI: " + uri);
         } catch (IOException | JSONException e) {
             Log.e(TAG, "Error writing parameters to URI", e);
             Toast.makeText(this, "Ошибка сохранения", Toast.LENGTH_SHORT).show();
@@ -526,6 +633,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
              OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fos)) {
             outputStreamWriter.write(paramsJson.toString(4));
             Toast.makeText(this, "Параметры сохранены (внутр.)", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to internal file: " + file.getAbsolutePath());
         } catch (IOException | JSONException e) {
             Log.e(TAG, "Error writing parameters to internal file", e);
             Toast.makeText(this, "Ошибка сохранения (внутр.)", Toast.LENGTH_SHORT).show();
@@ -536,7 +644,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         JSONObject paramsJson = new JSONObject();
         try {
             float[] matrixValues = new float[9];
-            matrix.getValues(matrixValues); // Сохраняем текущую матрицу overlayImageView
+            matrix.getValues(matrixValues);
             JSONArray matrixJsonArray = new JSONArray();
             for (float value : matrixValues) {
                 matrixJsonArray.put(value);
@@ -549,7 +657,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 paramsJson.put("initial_image_scale_for_link", initialImageScale);
             }
             paramsJson.put("is_green_mode", isGreenMode);
-            // panOverlayX и panOverlayY больше не нужны для сохранения, т.к. их эффект уже в matrix
+            // panOverlayX и panOverlayY теперь часть matrix_values
             return paramsJson;
         } catch (JSONException e) {
             Log.e(TAG, "Error creating JSON for parameters", e);
@@ -606,10 +714,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 for (int i = 0; i < 9; i++) {
                     matrixValues[i] = (float) matrixJsonArray.getDouble(i);
                 }
-                matrix.setValues(matrixValues); // Восстанавливаем матрицу
+                matrix.setValues(matrixValues);
                 overlayImageView.setImageMatrix(matrix);
-                savedMatrix.set(matrix); // И savedMatrix тоже
-                panOverlayX = 0; // Сбрасываем, так как все смещения уже в matrix
+                savedMatrix.set(matrix);
+                panOverlayX = 0;
                 panOverlayY = 0;
             }
 
@@ -625,8 +733,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 if (paramsJson.has("initial_camera_zoom_ratio_for_link") && paramsJson.has("initial_image_scale_for_link")) {
                     initialCameraZoomRatio = (float) paramsJson.getDouble("initial_camera_zoom_ratio_for_link");
                     initialImageScale = (float) paramsJson.getDouble("initial_image_scale_for_link");
+                    Log.i(TAG, "Restored zoom link baseline from file: CamRatio=" + initialCameraZoomRatio + ", ImgScale=" + initialImageScale);
                 } else {
                     updateZoomLinkBaseline();
+                    Log.w(TAG, "Zoom link baseline data not in file, re-calculating.");
                 }
             }
             
@@ -637,16 +747,13 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 isGreenMode = false;
                 greenModeCheckbox.setChecked(false);
             }
-            
-            // panOverlayX/Y больше не загружаем отдельно, они часть matrix_values
 
             if (isPencilMode) {
                 createProcessedBitmap();
                 updateImageDisplay();
             } else {
-                updateImageDisplay(); // Обновить, чтобы применилась матрица и альфа
+                updateImageDisplay();
             }
-
 
             Toast.makeText(this, "Параметры загружены", Toast.LENGTH_SHORT).show();
             Log.i(TAG, "Parameters loaded and applied successfully.");
@@ -874,8 +981,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         Log.d(TAG, "Resetting image matrix for overlayImageView");
         if (overlayImageView == null) return;
 
-        matrix.reset(); // Сбрасываем основную матрицу
-        panOverlayX = 0f; // Сбрасываем дополнительное панорамирование
+        matrix.reset();
+        panOverlayX = 0f;
         panOverlayY = 0f;
 
         overlayImageView.post(() -> {
@@ -893,7 +1000,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 return;
             }
 
-            // Снова сбрасываем матрицу на всякий случай, если размеры изменились
             matrix.reset();
             float scale;
             float dx = 0, dy = 0;
@@ -908,7 +1014,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             matrix.postScale(scale, scale);
             matrix.postTranslate(dx, dy);
             overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix); // Сохраняем начальное состояние
+            savedMatrix.set(matrix);
 
             if(isZoomLinked) {
                 updateZoomLinkBaseline();
