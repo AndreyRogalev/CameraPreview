@@ -88,8 +88,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final int NONE = 0;
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
-    private static final float OVERLAY_PAN_STEP = 15f;
-    private static final float OVERLAY_ROTATE_STEP = 5.0f;
+    private static final float OVERLAY_PAN_STEP = 5f;      // Уменьшен шаг панорамирования
+    private static final float OVERLAY_ROTATE_STEP = 1.0f; // Уменьшен шаг вращения
 
     private PreviewView previewView;
     private Slider zoomSlider;
@@ -273,7 +273,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
         updateGreenModeCheckboxVisibility();
-        // resetImageMatrix() вызовется при первой загрузке изображения
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -516,7 +515,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (overlayImageView != null && overlayImageView.getVisibility() == View.VISIBLE) {
             matrix.postTranslate(dx, dy);
             overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix); // Важно для консистентности с DRAG жестом
+            savedMatrix.set(matrix);
             Log.d(TAG, "Panned overlay by (" + dx + ", " + dy + ")");
         }
     }
@@ -528,7 +527,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
             matrix.postRotate(degrees, px, py);
             overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix); // Важно для консистентности с DRAG жестом
+            savedMatrix.set(matrix);
             Log.d(TAG, "Rotated overlay by " + degrees + " degrees around (" + px + ", " + py + ")");
         }
     }
@@ -559,9 +558,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 transparencySlider.setEnabled(true);
                 transparencySlider.setValue(1.0f);
                 overlayImageView.setAlpha(1.0f);
-
                 resetImageMatrix();
-
                 Toast.makeText(this, "Изображение загружено", Toast.LENGTH_SHORT).show();
             } else {
                 throw new IOException("BitmapFactory.decodeStream returned null for URI: " + imageUri);
@@ -606,7 +603,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateGreenModeCheckboxVisibility();
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
-        // resetImageMatrix(); // Уже не нужно, так как все сброшено
     }
 
     private void updateSaveLoadParamsButtonsVisibility() {
@@ -753,7 +749,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             if (isPencilMode) {
                 createProcessedBitmap();
             }
-            updateImageDisplay(); // Применить все изменения, включая матрицу и альфу
+            updateImageDisplay();
 
             Toast.makeText(this, "Параметры загружены", Toast.LENGTH_SHORT).show();
             Log.i(TAG, "Parameters loaded and applied successfully.");
@@ -982,7 +978,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (overlayImageView == null) return;
 
         matrix.reset();
-        // panOverlayX и panOverlayY здесь больше не нужны, так как матрица сбрасывается полностью
 
         overlayImageView.post(() -> {
             if (overlayImageView == null || overlayImageView.getDrawable() == null) {
