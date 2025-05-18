@@ -292,21 +292,26 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 savedMatrix.set(matrix);
                 start.set(curr);
                 mode = DRAG;
+                Log.v(TAG, "onTouch: DOWN, mode=DRAG");
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 oldDist = spacing(event);
                 oldAngle = rotation(event);
+                Log.v(TAG, "onTouch: POINTER_DOWN, oldDist=" + oldDist);
                 if (oldDist > 10f) {
                     savedMatrix.set(matrix);
                     midPoint(mid, event);
                     mode = ZOOM;
+                    Log.v(TAG, "onTouch: mode=ZOOM");
                 }
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
+                Log.v(TAG, "onTouch: UP/POINTER_UP, mode=NONE");
                 if (isZoomLinked) {
                     updateZoomLinkBaseline();
+                    Log.d(TAG, "Manual image transform finished. Zoom link baseline updated.");
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
@@ -316,6 +321,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 } else if (mode == ZOOM && event.getPointerCount() >= 2) {
                     float newDist = spacing(event);
                     float newAngle = rotation(event);
+                    Log.v(TAG, "onTouch: MOVE, mode=ZOOM, newDist=" + newDist);
                     if (newDist > 10f) {
                         matrix.set(savedMatrix);
                         float scale = newDist / oldDist;
@@ -330,10 +336,34 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         return true;
     }
 
-    private float spacing(MotionEvent event) { if (event.getPointerCount() < 2) return 0f; float x = event.getX(0) - event.getX(1); float y = event.getY(0) - event.getY(1); return (float) Math.sqrt(x * x + y * y); }
-    private void midPoint(PointF point, MotionEvent event) { if (event.getPointerCount() < 2) return; float x = event.getX(0) + event.getX(1); float y = event.getY(0) + event.getY(1); point.set(x / 2, y / 2); }
-    private float rotation(MotionEvent event) { if (event.getPointerCount() < 2) return 0f; double delta_x = (event.getX(0) - event.getX(1)); double delta_y = (event.getY(0) - event.getY(1)); double radians = Math.atan2(delta_y, delta_x); return (float) Math.toDegrees(radians); }
-    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener { @Override public boolean onScale(ScaleGestureDetector detector) { return true; } }
+    private float spacing(MotionEvent event) {
+        if (event.getPointerCount() < 2) return 0f;
+        float x = event.getX(0) - event.getX(1);
+        float y = event.getY(0) - event.getY(1);
+        return (float) Math.sqrt(x * x + y * y);
+    }
+
+    private void midPoint(PointF point, MotionEvent event) {
+        if (event.getPointerCount() < 2) return;
+        float x = event.getX(0) + event.getX(1);
+        float y = event.getY(0) + event.getY(1);
+        point.set(x / 2, y / 2);
+    }
+
+    private float rotation(MotionEvent event) {
+        if (event.getPointerCount() < 2) return 0f;
+        double delta_x = (event.getX(0) - event.getX(1));
+        double delta_y = (event.getY(0) - event.getY(1));
+        double radians = Math.atan2(delta_y, delta_x);
+        return (float) Math.toDegrees(radians);
+    }
+
+    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            return true;
+        }
+    }
 
     private void setupLoadImageButtonListener() {
         loadImageButton.setOnClickListener(v -> {
@@ -579,9 +609,36 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (saveParamsButton != null) saveParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
         if (loadParamsButton != null) loadParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
     }
+    
+    private void saveParametersToFile(Uri uri) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
+        JSONObject paramsJson = createParamsJson();
+        if (paramsJson == null) return;
+        try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(
+                getContentResolver().openOutputStream(uri))) {
+            outputStreamWriter.write(paramsJson.toString(4));
+            Toast.makeText(this, "Параметры сохранены", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to URI: " + uri);
+        } catch (IOException | JSONException e) {
+            Log.e(TAG, "Error writing parameters to URI", e);
+            Toast.makeText(this, "Ошибка сохранения", Toast.LENGTH_SHORT).show();
+        }
+    }
 
-    private void saveParametersToFile(Uri uri) { /* ... */ }
-    private void saveParametersToFile(File file) { /* ... */ }
+    private void saveParametersToFile(File file) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
+        JSONObject paramsJson = createParamsJson();
+        if (paramsJson == null) return;
+        try (FileOutputStream fos = new FileOutputStream(file);
+             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fos)) {
+            outputStreamWriter.write(paramsJson.toString(4));
+            Toast.makeText(this, "Параметры сохранены (внутр.)", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Parameters saved to internal file: " + file.getAbsolutePath());
+        } catch (IOException | JSONException e) {
+            Log.e(TAG, "Error writing parameters to internal file", e);
+            Toast.makeText(this, "Ошибка сохранения (внутр.)", Toast.LENGTH_SHORT).show();
+        }
+    }
     
     private JSONObject createParamsJson() {
         JSONObject paramsJson = new JSONObject();
@@ -605,12 +662,48 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             return paramsJson;
         } catch (JSONException e) {
             Log.e(TAG, "Error creating JSON for parameters", e);
+            Toast.makeText(this, "Ошибка создания JSON", Toast.LENGTH_SHORT).show();
             return null;
         }
     }
 
-    private void loadParametersFromFile(Uri uri) { /* ... */ }
-    private void loadParametersFromFile(File file) { /* ... */ }
+    private void loadParametersFromFile(Uri uri) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null || originalBitmap == null) {
+            Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try (InputStream inputStream = getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+            }
+            applyParamsFromJson(stringBuilder.toString());
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading parameters from URI", e);
+            Toast.makeText(this, "Ошибка чтения файла", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void loadParametersFromFile(File file) {
+        if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null || originalBitmap == null) {
+             Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try (FileInputStream fis = new FileInputStream(file);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(fis))) {
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+            }
+            applyParamsFromJson(stringBuilder.toString());
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading parameters from internal file", e);
+            Toast.makeText(this, "Ошибка чтения файла (внутр.)", Toast.LENGTH_SHORT).show();
+        }
+    }
 
     private void applyParamsFromJson(String jsonString) {
         try {
@@ -639,8 +732,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 if (paramsJson.has("initial_camera_zoom_ratio_for_link") && paramsJson.has("initial_image_scale_for_link")) {
                     initialCameraZoomRatio = (float) paramsJson.getDouble("initial_camera_zoom_ratio_for_link");
                     initialImageScale = (float) paramsJson.getDouble("initial_image_scale_for_link");
+                    Log.i(TAG, "Restored zoom link baseline from file: CamRatio=" + initialCameraZoomRatio + ", ImgScale=" + initialImageScale);
                 } else {
                     updateZoomLinkBaseline();
+                    Log.w(TAG, "Zoom link baseline data not in file, re-calculating.");
                 }
             }
             
@@ -674,19 +769,297 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         }
     }
 
-    private void updateZoomLinkBaseline() { /* ... */ }
-    private float getMatrixScale(Matrix matrix) { /* ... */ }
-    private void createProcessedBitmap() { /* ... */ }
-    private Bitmap createCompositeGrayscaleBitmap() { /* ... */ }
-    private void updateImageDisplay() { /* ... */ }
-    private void showLayerSelectionDialog() { /* ... */ }
-    @Override public void onLayerVisibilityChanged(int position, boolean isVisible) { /* ... */ }
-    private void recycleBitmap(Bitmap bitmap) { /* ... */ }
-    private void recycleAllBitmaps() { /* ... */ }
-    private void resetImageMatrix() { /* ... */ }
-    private void updateGreenModeCheckboxVisibility() { /* ... */ }
-    private void updateShowLayersCheckboxVisibility() { /* ... */ }
-    private void updateLayerButtonVisibility() { /* ... */ }
+    private void updateZoomLinkBaseline() {
+        if (camera == null || overlayImageView.getDrawable() == null || matrix == null) {
+            Log.w(TAG, "Cannot update zoom link baseline - camera, image or matrix not ready.");
+            if(isZoomLinked && linkZoomSwitch != null) {
+                isZoomLinked = false;
+                linkZoomSwitch.setChecked(false);
+            }
+            if(linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
+            return;
+        }
+        LiveData<ZoomState> zoomStateLiveData = camera.getCameraInfo().getZoomState();
+        ZoomState currentZoomState = zoomStateLiveData.getValue();
+        if (currentZoomState != null) {
+            initialCameraZoomRatio = currentZoomState.getZoomRatio();
+            if (initialCameraZoomRatio < 1.0f) initialCameraZoomRatio = 1.0f;
+        } else {
+            initialCameraZoomRatio = 1.0f;
+            Log.w(TAG,"Could not get current camera zoom state for baseline. Using 1.0f.");
+        }
+        initialImageScale = getMatrixScale(matrix);
+        Log.i(TAG, "Zoom Link Baseline UPDATED. Initial Cam Ratio: " + initialCameraZoomRatio + ", Initial Img Scale: " + initialImageScale);
+    }
+
+    private float getMatrixScale(Matrix matrix) {
+        float[] values = new float[9];
+        matrix.getValues(values);
+        float scaleX = values[Matrix.MSCALE_X];
+        float skewY = values[Matrix.MSKEW_Y];
+        return (float) Math.sqrt(scaleX * scaleX + skewY * skewY);
+    }
+
+    private void createProcessedBitmap() {
+        if (originalBitmap == null || originalBitmap.isRecycled()) {
+            Log.w(TAG, "createProcessedBitmap: Original bitmap is null or recycled.");
+            return;
+        }
+        Log.d(TAG, "Creating processed bitmap (isGreenMode: " + isGreenMode + ")...");
+        recycleBitmap(processedBitmap);
+
+        try {
+            processedBitmap = Bitmap.createBitmap(originalBitmap.getWidth(), originalBitmap.getHeight(), Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(processedBitmap);
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+
+            if (isGreenMode) {
+                ColorMatrix cm = new ColorMatrix(new float[]{
+                        0, 0, 0, 0, 0,
+                        0.2126f, 0.7152f, 0.0722f, 0, 0,
+                        0, 0, 0, 0, 0,
+                        0, 0, 0, 1, 0
+                });
+                paint.setColorFilter(new ColorMatrixColorFilter(cm));
+
+            } else {
+                ColorMatrix cm = new ColorMatrix();
+                cm.setSaturation(0);
+                paint.setColorFilter(new ColorMatrixColorFilter(cm));
+            }
+            canvas.drawBitmap(originalBitmap, 0, 0, paint);
+            Log.d(TAG, "Processed bitmap created successfully.");
+        } catch (OutOfMemoryError oom) {
+            Log.e(TAG, "Out of Memory Error creating processed bitmap", oom);
+            Toast.makeText(this, "Недостаточно памяти для обработки", Toast.LENGTH_SHORT).show();
+            processedBitmap = null;
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating processed bitmap", e);
+            processedBitmap = null;
+        }
+    }
+
+    private Bitmap createCompositeGrayscaleBitmap() {
+        if (processedBitmap == null || processedBitmap.isRecycled()) {
+            Log.w(TAG, "createCompositeBitmap: Processed bitmap is not available.");
+            return null;
+        }
+        if (layerVisibility == null) {
+            Log.e(TAG, "createCompositeBitmap: layerVisibility is null.");
+            return null;
+        }
+        Log.d(TAG, "Creating composite bitmap (isGreenMode: " + isGreenMode + ")...");
+        int width = processedBitmap.getWidth();
+        int height = processedBitmap.getHeight();
+        int[] processedPixels = new int[width * height];
+        int[] finalPixels = new int[width * height];
+
+        try {
+            processedBitmap.getPixels(processedPixels, 0, width, 0, 0, width, height);
+            boolean anyLayerVisible = false;
+
+            for (int j = 0; j < processedPixels.length; j++) {
+                int pixelColor = processedPixels[j];
+                int intensityValue = isGreenMode ? Color.green(pixelColor) : Color.red(pixelColor);
+
+                int layerIndex = GRAY_LEVELS - 1 - (int) (intensityValue / GRAY_RANGE_SIZE);
+                layerIndex = Math.max(0, Math.min(GRAY_LEVELS - 1, layerIndex));
+
+                if (layerVisibility[layerIndex]) {
+                    finalPixels[j] = pixelColor;
+                    anyLayerVisible = true;
+                } else {
+                    finalPixels[j] = Color.TRANSPARENT;
+                }
+            }
+
+            if (!anyLayerVisible) Log.d(TAG, "No layers visible, composite will be fully transparent.");
+            Bitmap composite = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            composite.setPixels(finalPixels, 0, width, 0, 0, width, height);
+            Log.d(TAG, "Composite bitmap created.");
+            return composite;
+        } catch (OutOfMemoryError oom) {
+            Log.e(TAG, "Out of memory during compositing", oom);
+            Toast.makeText(this, "Недостаточно памяти для композитинга", Toast.LENGTH_SHORT).show();
+            return null;
+        } catch (Exception e) {
+            Log.e(TAG, "Error during compositing", e);
+            return null;
+        }
+    }
+
+
+    private void updateImageDisplay() {
+        if (overlayImageView == null) return;
+        if (originalBitmap == null || originalBitmap.isRecycled()) {
+            Log.w(TAG, "updateImageDisplay: Original bitmap unavailable. Hiding overlay.");
+            clearImageRelatedData();
+            return;
+        }
+        Log.d(TAG, "Updating image display. Pencil Mode: " + isPencilMode + ", Green Mode: " + isGreenMode);
+        recycleBitmap(finalCompositeBitmap);
+        finalCompositeBitmap = null;
+        Bitmap bitmapToShow;
+        if (isPencilMode) {
+            finalCompositeBitmap = createCompositeGrayscaleBitmap();
+            bitmapToShow = finalCompositeBitmap;
+            if (bitmapToShow == null && processedBitmap != null && !processedBitmap.isRecycled()) {
+                 Log.w(TAG,"Composite bitmap creation failed, showing full processed (gray/green) bitmap as fallback.");
+                 bitmapToShow = processedBitmap;
+            } else if (bitmapToShow == null) {
+                 Log.w(TAG,"Composite AND processed bitmaps are null, showing original as fallback.");
+                 bitmapToShow = originalBitmap;
+            }
+        } else {
+            bitmapToShow = originalBitmap;
+        }
+        if (bitmapToShow != null && !bitmapToShow.isRecycled()) {
+            overlayImageView.setImageBitmap(bitmapToShow);
+            overlayImageView.setImageMatrix(matrix);
+            overlayImageView.setVisibility(View.VISIBLE);
+            Log.d(TAG, "Bitmap set to overlayImageView.");
+        } else {
+            Log.w(TAG, "bitmapToShow is null or recycled. Clearing overlay & hiding.");
+            clearImageRelatedData();
+        }
+    }
+
+    private void showLayerSelectionDialog() {
+        Log.d(TAG, "Showing layer selection dialog.");
+        if (PENCIL_HARDNESS == null || layerVisibility == null) {
+            Log.e(TAG, "Layer data is null.");
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_layer_select, null);
+        builder.setView(dialogView);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.layersRecyclerView);
+        if (recyclerView == null) {
+            Log.e(TAG, "RecyclerView not found!");
+            Toast.makeText(this,"Ошибка диалога слоев", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        final LayerAdapter adapter = new LayerAdapter(PENCIL_HARDNESS, layerVisibility, this);
+        recyclerView.setAdapter(adapter);
+        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
+        builder.setNeutralButton("Все", (dialog, which) -> {
+            Arrays.fill(layerVisibility, true);
+            if (adapter != null) adapter.notifyDataSetChanged();
+            updateImageDisplay();
+        });
+        builder.setNegativeButton("Ничего", (dialog, which) -> {
+            Arrays.fill(layerVisibility, false);
+            if (adapter != null) adapter.notifyDataSetChanged();
+            updateImageDisplay();
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    @Override
+    public void onLayerVisibilityChanged(int position, boolean isVisible) {
+        Log.d(TAG, "onLayerVisibilityChanged - Position: " + position + ", Visible: " + isVisible);
+        updateImageDisplay();
+    }
+
+    private void recycleBitmap(Bitmap bitmap) {
+        if (bitmap != null && !bitmap.isRecycled()) {
+            bitmap.recycle();
+        }
+    }
+
+    private void recycleAllBitmaps() {
+        Log.d(TAG, "Recycling all bitmaps...");
+        recycleBitmap(originalBitmap);
+        originalBitmap = null;
+        recycleBitmap(processedBitmap);
+        processedBitmap = null;
+        recycleBitmap(finalCompositeBitmap);
+        finalCompositeBitmap = null;
+        Log.d(TAG, "All bitmaps recycled.");
+    }
+
+    private void resetImageMatrix() {
+        Log.d(TAG, "Resetting image matrix");
+        if (overlayImageView == null) return;
+        matrix.reset();
+        overlayImageView.post(() -> {
+            if (overlayImageView == null || overlayImageView.getDrawable() == null) return;
+            int viewWidth = overlayImageView.getWidth();
+            int viewHeight = overlayImageView.getHeight();
+            int drawableWidth = overlayImageView.getDrawable().getIntrinsicWidth();
+            int drawableHeight = overlayImageView.getDrawable().getIntrinsicHeight();
+            if (viewWidth <= 0 || viewHeight <= 0 || drawableWidth <= 0 || drawableHeight <= 0) {
+                Log.w(TAG, "Cannot reset matrix, invalid dimensions.");
+                return;
+            }
+            matrix.reset();
+            float scale;
+            float dx = 0, dy = 0;
+            if (drawableWidth * viewHeight > viewWidth * drawableHeight) {
+                scale = (float) viewWidth / (float) drawableWidth;
+                dy = (viewHeight - drawableHeight * scale) * 0.5f;
+            } else {
+                scale = (float) viewHeight / (float) drawableHeight;
+                dx = (viewWidth - drawableWidth * scale) * 0.5f;
+            }
+            matrix.postScale(scale, scale);
+            matrix.postTranslate(dx, dy);
+            overlayImageView.setImageMatrix(matrix);
+            savedMatrix.set(matrix);
+            if(isZoomLinked) {
+                updateZoomLinkBaseline();
+                Log.d(TAG, "Image matrix reset. Zoom link baseline updated.");
+            } else {
+                Log.d(TAG, "Image matrix reset.");
+            }
+        });
+    }
+
+    private void updateGreenModeCheckboxVisibility() {
+        if (greenModeCheckbox != null && pencilModeSwitch != null) {
+            greenModeCheckbox.setVisibility(isPencilMode ? View.VISIBLE : View.GONE);
+            if (!isPencilMode && isGreenMode) {
+                isGreenMode = false;
+                greenModeCheckbox.setChecked(false);
+            }
+        }
+    }
+
+    private void updateShowLayersCheckboxVisibility() {
+        if (controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null || pencilModeSwitch == null) {
+            return;
+        }
+        boolean controlsHidden = !controlsVisibilityCheckbox.isChecked();
+        boolean pencilModeActive = isPencilMode;
+        boolean shouldBeVisible = controlsHidden && pencilModeActive;
+        showLayersWhenControlsHiddenCheckbox.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
+        Log.d(TAG, "updateShowLayersCheckboxVisibility: controlsHidden=" + controlsHidden
+                + ", pencilModeActive=" + pencilModeActive + " -> shouldBeVisible=" + shouldBeVisible);
+        if (!shouldBeVisible && showLayersWhenControlsHiddenCheckbox.isChecked()) {
+             Log.d(TAG, "updateShowLayersCheckboxVisibility: Checkbox becoming hidden, unchecking it.");
+            showLayersWhenControlsHiddenCheckbox.setChecked(false);
+            updateLayerButtonVisibility();
+        }
+    }
+
+    private void updateLayerButtonVisibility() {
+        if (layerSelectButton == null || controlsVisibilityCheckbox == null || showLayersWhenControlsHiddenCheckbox == null) {
+            Log.e(TAG, "Cannot update layer button visibility - one or more required views are null.");
+            return;
+        }
+        boolean canShowLayersBaseCondition = isPencilMode && (originalBitmap != null && !originalBitmap.isRecycled());
+        boolean shouldBeVisible;
+        if (controlsVisibilityCheckbox.isChecked()) {
+            shouldBeVisible = canShowLayersBaseCondition;
+        } else {
+            shouldBeVisible = canShowLayersBaseCondition && showLayersWhenControlsHiddenCheckbox.isChecked();
+        }
+        layerSelectButton.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
+    }
 
     @Override
     protected void onDestroy() {
