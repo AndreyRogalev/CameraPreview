@@ -519,15 +519,19 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (previewView != null) {
             previewView.setTranslationX(currentPanX);
             previewView.setTranslationY(currentPanY);
-            Log.d(TAG, "Applied pan: X=" + currentPanX + ", Y=" + currentPanY);
         }
+        if (overlayImageView != null && overlayImageView.getVisibility() == View.VISIBLE) {
+            overlayImageView.setTranslationX(currentPanX);
+            overlayImageView.setTranslationY(currentPanY);
+        }
+        Log.d(TAG, "Applied pan: X=" + currentPanX + ", Y=" + currentPanY + " to both views.");
     }
 
     private void resetPreviewPan() {
         currentPanX = 0f;
         currentPanY = 0f;
         applyPreviewPan();
-        Log.d(TAG, "Preview pan reset.");
+        Log.d(TAG, "Preview and Overlay pan reset.");
     }
 
     private void loadOriginalBitmap(Uri imageUri) {
@@ -750,10 +754,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             if (paramsJson.has("preview_pan_x") && paramsJson.has("preview_pan_y")) {
                 currentPanX = (float) paramsJson.getDouble("preview_pan_x");
                 currentPanY = (float) paramsJson.getDouble("preview_pan_y");
-                applyPreviewPan();
             } else {
-                resetPreviewPan();
+                currentPanX = 0f;
+                currentPanY = 0f;
             }
+            applyPreviewPan();
 
             if (isPencilMode) {
                 createProcessedBitmap();
