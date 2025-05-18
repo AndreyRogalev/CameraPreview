@@ -70,7 +70,7 @@
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider,panUpButton,panDownButton,panLeftButton,panRightButton,resetPanButton"
+        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider,panUpButton,panDownButton,panLeftButton,panRightButton,resetPanButton,rotateLeftButton,rotateRightButton"
         android:visibility="visible" />
 
     <!-- Кнопка Загрузить -->
@@ -216,7 +216,9 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
 
-    <!-- Кнопки панорамирования -->
+    <!-- Кнопки панорамирования и вращения -->
+    <!-- Расположим их в правой части экрана -->
+
     <Button
         android:id="@+id/panUpButton"
         style="?android:attr/buttonBarButtonStyle"
@@ -224,8 +226,8 @@
         android:layout_height="50dp"
         android:text="↑"
         android:textSize="20sp"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintEnd_toStartOf="@+id/rotateLeftButton"
         app:layout_constraintBottom_toTopOf="@+id/panLeftButton" />
 
     <Button
@@ -271,10 +273,34 @@
         android:text="↓"
         android:textSize="20sp"
         android:layout_marginBottom="64dp"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintEnd_toStartOf="@+id/rotateRightButton"
         app:layout_constraintTop_toBottomOf="@+id/panRightButton"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
+    <!-- Кнопки вращения -->
+    <Button
+        android:id="@+id/rotateLeftButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="↺"
+        android:textSize="20sp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/panUpButton"
+        app:layout_constraintBottom_toBottomOf="@+id/panUpButton"/>
+
+    <Button
+        android:id="@+id/rotateRightButton"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:text="↻"
+        android:textSize="20sp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/panDownButton"
+        app:layout_constraintBottom_toBottomOf="@+id/panDownButton"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
