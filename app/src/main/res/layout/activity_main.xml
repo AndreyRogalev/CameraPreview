@@ -233,32 +233,21 @@
         android:shadowDy="1"
         android:shadowRadius="1"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/zoom_slider"/> <!-- Привязываем к верху зум-слайдера, чтобы было место для кнопок -->
+        app:layout_constraintBottom_toTopOf="@id/zoom_slider"/>
 
 
-    <!-- >>> ИЗМЕНЕННЫЙ БЛОК: Элементы управления ручным редактированием <<< -->
+    <!-- Элементы управления ручным редактированием -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/manualTransformControlsLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="4dp" <!-- Небольшой отступ от переключателя -->
+        android:layout_marginBottom="4dp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch">
 
-        <!-- Кнопки управления с фиксированными размерами для предсказуемости -->
-        <Button
-            android:id="@+id/buttonMoveUp"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="52dp"
-            android:layout_height="48dp"
-            android:text="↑"
-            android:padding="0dp"
-            app:layout_constraintEnd_toStartOf="@id/buttonMoveRight"
-            app:layout_constraintTop_toTopOf="parent"
-            android:layout_marginEnd="4dp"/>
-
+        <!-- Строка 1: Кнопки перемещения -->
         <Button
             android:id="@+id/buttonMoveLeft"
             style="?android:attr/buttonBarButtonStyle"
@@ -266,19 +255,19 @@
             android:layout_height="48dp"
             android:text="←"
             android:padding="0dp"
-            app:layout_constraintEnd_toStartOf="@id/buttonMoveUp"
-            app:layout_constraintTop_toTopOf="@id/buttonMoveUp"
-            android:layout_marginEnd="4dp"/>
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <Button
-            android:id="@+id/buttonMoveRight"
+            android:id="@+id/buttonMoveUp"
             style="?android:attr/buttonBarButtonStyle"
             android:layout_width="52dp"
             android:layout_height="48dp"
-            android:text="→"
+            android:text="↑"
             android:padding="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/buttonMoveUp" />
+            app:layout_constraintStart_toEndOf="@id/buttonMoveLeft"
+            app:layout_constraintTop_toTopOf="@id/buttonMoveLeft"
+            android:layout_marginStart="4dp"/> <!-- Добавил отступ -->
 
         <Button
             android:id="@+id/buttonMoveDown"
@@ -292,7 +281,19 @@
             app:layout_constraintTop_toBottomOf="@id/buttonMoveUp"
             android:layout_marginTop="4dp"/>
 
-        <!-- Кнопки вращения и сброс -->
+        <Button
+            android:id="@+id/buttonMoveRight"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="52dp"
+            android:layout_height="48dp"
+            android:text="→"
+            android:padding="0dp"
+            app:layout_constraintStart_toEndOf="@id/buttonMoveUp"
+            app:layout_constraintTop_toTopOf="@id/buttonMoveUp"
+            android:layout_marginStart="4dp"/> <!-- Добавил отступ -->
+
+
+        <!-- Строка 2: Кнопки вращения и сброс -->
         <Button
             android:id="@+id/buttonRotateCCW"
             style="?android:attr/buttonBarButtonStyle"
@@ -300,8 +301,8 @@
             android:layout_height="48dp"
             android:text="↺"
             android:padding="0dp"
-            app:layout_constraintStart_toStartOf="@id/buttonMoveLeft"
-            app:layout_constraintTop_toBottomOf="@id/buttonMoveLeft"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/buttonMoveDown" <!-- Изменил привязку для корректного расположения под всей группой стрелок -->
             android:layout_marginTop="8dp"/>
 
         <Button
@@ -311,9 +312,9 @@
             android:layout_height="48dp"
             android:text="0"
             android:padding="0dp"
-            app:layout_constraintStart_toStartOf="@id/buttonMoveDown"
-            app:layout_constraintEnd_toEndOf="@id/buttonMoveDown"
-            app:layout_constraintTop_toTopOf="@id/buttonRotateCCW"/>
+            app:layout_constraintStart_toEndOf="@id/buttonRotateCCW"
+            app:layout_constraintTop_toTopOf="@id/buttonRotateCCW"
+            android:layout_marginStart="4dp"/>
 
         <Button
             android:id="@+id/buttonRotateCW"
@@ -323,10 +324,10 @@
             android:text="↻"
             android:padding="0dp"
             app:layout_constraintStart_toEndOf="@id/buttonResetTransform"
-            app:layout_constraintEnd_toEndOf="@id/buttonMoveRight"
-            app:layout_constraintTop_toTopOf="@id/buttonResetTransform"/>
+            app:layout_constraintTop_toTopOf="@id/buttonResetTransform"
+            android:layout_marginStart="4dp"/>
 
-        <!-- Поле ввода шага -->
+        <!-- Строка 3: Поле ввода шага -->
         <EditText
             android:id="@+id/editTextTransformStep"
             android:layout_width="0dp"
