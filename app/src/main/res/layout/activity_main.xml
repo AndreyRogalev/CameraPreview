@@ -236,19 +236,18 @@
         app:layout_constraintBottom_toTopOf="@id/zoom_slider"/>
 
 
-    <!-- >>> ИЗМЕНЕННЫЙ БЛОК: Элементы управления ручным редактированием <<< -->
-    <!-- Располагаем этот ConstraintLayout в правом нижнем углу, НАД слайдерами и переключателем linkZoomSwitch -->
+    <!-- Элементы управления ручным редактированием -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/manualTransformControlsLayout"
-        android:layout_width="wrap_content" <!-- Изменено на wrap_content для компактности -->
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
         android:padding="8dp"
-        android:background="#80000000" <!-- Полупрозрачный фон для читаемости -->
+        android:background="#80000000"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch"> <!-- Привязка к низу переключателя Ред. поз. -->
+        app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch">
 
         <!-- Строка 1: Кнопки перемещения -->
         <Button
@@ -333,17 +332,15 @@
             app:layout_constraintTop_toBottomOf="@id/buttonRotateCCW"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintWidth_max="150dp"/> <!-- Ограничиваем максимальную ширину -->
+            app:layout_constraintWidth_max="150dp"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Группа для управления видимостью блока ручного редактирования (не включаем в controlsGroup) -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/manualTransformControlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="manualTransformControlsLayout"
         android:visibility="gone"/>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
