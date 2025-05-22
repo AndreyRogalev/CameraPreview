@@ -4,7 +4,6 @@ package com.example.camerapreview;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -15,11 +14,10 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PointF;
-import android.graphics.PorterDuff;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -27,13 +25,13 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -50,7 +48,6 @@ import androidx.camera.view.PreviewView;
 import androidx.constraintlayout.widget.Group;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LiveData;
-import androidx.lifecycle.Observer;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -69,10 +66,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 
@@ -88,8 +82,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final int NONE = 0;
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
-    private static final float OVERLAY_PAN_STEP = 5f;      // Уменьшен шаг панорамирования
-    private static final float OVERLAY_ROTATE_STEP = 1.0f; // Уменьшен шаг вращения
+    private static final float DEFAULT_TRANSFORM_STEP = 10.0f;
 
     private PreviewView previewView;
     private Slider zoomSlider;
@@ -106,13 +99,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private CheckBox showLayersWhenControlsHiddenCheckbox;
     private SwitchCompat linkZoomSwitch;
 
-    private Button panUpButton;
-    private Button panDownButton;
-    private Button panLeftButton;
-    private Button panRightButton;
-    private Button resetPanButton;
-    private Button rotateLeftButton;
-    private Button rotateRightButton;
+    private SwitchCompat manualTransformSwitch;
+    private Group manualTransformControlsGroup;
+    private Button buttonMoveUp, buttonMoveDown, buttonMoveLeft, buttonMoveRight;
+    private Button buttonRotateCW, buttonRotateCCW, buttonResetTransform;
+    private EditText editTextTransformStep;
+
 
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private ProcessCameraProvider cameraProvider;
@@ -211,22 +203,27 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox);
         showLayersWhenControlsHiddenCheckbox = findViewById(R.id.showLayersWhenControlsHiddenCheckbox);
         linkZoomSwitch = findViewById(R.id.linkZoomSwitch);
-        panUpButton = findViewById(R.id.panUpButton);
-        panDownButton = findViewById(R.id.panDownButton);
-        panLeftButton = findViewById(R.id.panLeftButton);
-        panRightButton = findViewById(R.id.panRightButton);
-        resetPanButton = findViewById(R.id.resetPanButton);
-        rotateLeftButton = findViewById(R.id.rotateLeftButton);
-        rotateRightButton = findViewById(R.id.rotateRightButton);
+
+        manualTransformSwitch = findViewById(R.id.manualTransformSwitch);
+        manualTransformControlsGroup = findViewById(R.id.manualTransformControlsGroup);
+        buttonMoveUp = findViewById(R.id.buttonMoveUp);
+        buttonMoveDown = findViewById(R.id.buttonMoveDown);
+        buttonMoveLeft = findViewById(R.id.buttonMoveLeft);
+        buttonMoveRight = findViewById(R.id.buttonMoveRight);
+        buttonRotateCW = findViewById(R.id.buttonRotateCW);
+        buttonRotateCCW = findViewById(R.id.buttonRotateCCW);
+        buttonResetTransform = findViewById(R.id.buttonResetTransform);
+        editTextTransformStep = findViewById(R.id.editTextTransformStep);
 
 
         if (previewView == null || zoomSlider == null || loadImageButton == null ||
                 overlayImageView == null || transparencySlider == null || pencilModeSwitch == null ||
                 greenModeCheckbox == null || layerSelectButton == null ||
                 saveParamsButton == null || loadParamsButton == null ||
-                panUpButton == null || panDownButton == null || panLeftButton == null ||
-                panRightButton == null || resetPanButton == null ||
-                rotateLeftButton == null || rotateRightButton == null ||
+                manualTransformSwitch == null || manualTransformControlsGroup == null ||
+                buttonMoveUp == null || buttonMoveDown == null || buttonMoveLeft == null || buttonMoveRight == null ||
+                buttonRotateCW == null || buttonRotateCCW == null || buttonResetTransform == null ||
+                editTextTransformStep == null ||
                 controlsGroup == null || controlsVisibilityCheckbox == null ||
                 showLayersWhenControlsHiddenCheckbox == null ||
                 linkZoomSwitch == null) {
@@ -253,10 +250,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupLayerSelectButtonListener();
         setupSaveParamsButtonListener();
         setupLoadParamsButtonListener();
-        setupPanAndRotateButtonsListeners();
         setupControlsVisibilityListener();
         setupShowLayersWhenControlsHiddenCheckboxListener();
         setupLinkZoomSwitchListener();
+        setupManualTransformControlsListeners();
 
         previewView.post(this::hideSystemUI);
         overlayImageView.setVisibility(View.GONE);
@@ -264,6 +261,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         transparencySlider.setEnabled(false);
         linkZoomSwitch.setEnabled(false);
         greenModeCheckbox.setVisibility(View.GONE);
+        manualTransformControlsGroup.setVisibility(View.GONE);
 
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
@@ -273,6 +271,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
         updateGreenModeCheckboxVisibility();
+        updateManualTransformControlsVisibility();
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -286,9 +285,15 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     @Override
     public boolean onTouch(View v, MotionEvent event) {
         if (v.getId() != R.id.overlayImageView) return false;
+        if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
+            return false;
+        }
+
         ImageView view = (ImageView) v;
         scaleGestureDetector.onTouchEvent(event);
+
         PointF curr = new PointF(event.getX(), event.getY());
+
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
                 savedMatrix.set(matrix);
@@ -392,7 +397,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         pencilModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.i(TAG, "Pencil Mode Switch changed: " + isChecked);
             isPencilMode = isChecked;
+
             updateGreenModeCheckboxVisibility();
+
             if (isChecked) {
                 if (processedBitmap == null && originalBitmap != null && !originalBitmap.isRecycled()) {
                     createProcessedBitmap();
@@ -467,22 +474,6 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    private void setupPanAndRotateButtonsListeners() {
-        panUpButton.setOnClickListener(v -> panOverlayImageView(0, -OVERLAY_PAN_STEP));
-        panDownButton.setOnClickListener(v -> panOverlayImageView(0, OVERLAY_PAN_STEP));
-        panLeftButton.setOnClickListener(v -> panOverlayImageView(-OVERLAY_PAN_STEP, 0));
-        panRightButton.setOnClickListener(v -> panOverlayImageView(OVERLAY_PAN_STEP, 0));
-
-        rotateLeftButton.setOnClickListener(v -> rotateOverlayImageView(-OVERLAY_ROTATE_STEP));
-        rotateRightButton.setOnClickListener(v -> rotateOverlayImageView(OVERLAY_ROTATE_STEP));
-
-        resetPanButton.setOnClickListener(v -> {
-            resetImageMatrix();
-            Log.d(TAG, "Overlay matrix reset to initial state by button.");
-        });
-    }
-
-
     private void setupControlsVisibilityListener() {
         controlsVisibilityCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "Controls Visibility Checkbox changed: " + isChecked);
@@ -511,24 +502,62 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    private void panOverlayImageView(float dx, float dy) {
-        if (overlayImageView != null && overlayImageView.getVisibility() == View.VISIBLE) {
+    private void setupManualTransformControlsListeners() {
+        manualTransformSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Log.d(TAG, "Manual Transform Switch changed: " + isChecked);
+            updateManualTransformControlsVisibility();
+        });
+
+        buttonMoveUp.setOnClickListener(v -> applyManualTransform(0, -getTransformStep(), 0));
+        buttonMoveDown.setOnClickListener(v -> applyManualTransform(0, getTransformStep(), 0));
+        buttonMoveLeft.setOnClickListener(v -> applyManualTransform(-getTransformStep(), 0, 0));
+        buttonMoveRight.setOnClickListener(v -> applyManualTransform(getTransformStep(), 0, 0));
+        buttonRotateCW.setOnClickListener(v -> applyManualTransform(0, 0, getTransformStep()));
+        buttonRotateCCW.setOnClickListener(v -> applyManualTransform(0, 0, -getTransformStep()));
+        buttonResetTransform.setOnClickListener(v -> {
+            resetImageMatrix();
+            if (isZoomLinked) {
+                updateZoomLinkBaseline();
+            }
+        });
+
+        editTextTransformStep.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                editTextTransformStep.clearFocus();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void applyManualTransform(float dx, float dy, float dAngle) {
+        if (overlayImageView == null || overlayImageView.getDrawable() == null) return;
+
+        if (dx != 0 || dy != 0) {
             matrix.postTranslate(dx, dy);
-            overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix);
-            Log.d(TAG, "Panned overlay by (" + dx + ", " + dy + ")");
+        }
+        if (dAngle != 0) {
+            float px = overlayImageView.getWidth() / 2f;
+            float py = overlayImageView.getHeight() / 2f;
+            matrix.postRotate(dAngle, px, py);
+        }
+        overlayImageView.setImageMatrix(matrix);
+
+        if (isZoomLinked && (dx != 0 || dy != 0 || dAngle != 0)) {
+             updateZoomLinkBaseline();
         }
     }
 
-    private void rotateOverlayImageView(float degrees) {
-        if (overlayImageView != null && overlayImageView.getVisibility() == View.VISIBLE && overlayImageView.getDrawable() != null) {
-            float px = overlayImageView.getWidth() / 2f;
-            float py = overlayImageView.getHeight() / 2f;
-
-            matrix.postRotate(degrees, px, py);
-            overlayImageView.setImageMatrix(matrix);
-            savedMatrix.set(matrix);
-            Log.d(TAG, "Rotated overlay by " + degrees + " degrees around (" + px + ", " + py + ")");
+    private float getTransformStep() {
+        if (editTextTransformStep == null) return DEFAULT_TRANSFORM_STEP;
+        String stepStr = editTextTransformStep.getText().toString();
+        if (TextUtils.isEmpty(stepStr)) return DEFAULT_TRANSFORM_STEP;
+        try {
+            float step = Float.parseFloat(stepStr);
+            return Math.max(0.1f, step);
+        } catch (NumberFormatException e) {
+            Log.w(TAG, "Invalid transform step value: " + stepStr);
+            return DEFAULT_TRANSFORM_STEP;
         }
     }
 
@@ -552,6 +581,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 updateGreenModeCheckboxVisibility();
                 updateShowLayersCheckboxVisibility();
                 updateLayerButtonVisibility();
+                updateManualTransformControlsVisibility(); // Обновляем видимость кнопок ручного управления
                 updateImageDisplay();
                 overlayImageView.setVisibility(View.VISIBLE);
                 transparencySlider.setVisibility(View.VISIBLE);
@@ -599,10 +629,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             linkZoomSwitch.setChecked(false);
         }
         if (linkZoomSwitch != null) linkZoomSwitch.setEnabled(false);
+        if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
+            manualTransformSwitch.setChecked(false);
+        }
         updateSaveLoadParamsButtonsVisibility();
         updateGreenModeCheckboxVisibility();
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
+        updateManualTransformControlsVisibility();
     }
 
     private void updateSaveLoadParamsButtonsVisibility() {
@@ -610,11 +644,20 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (saveParamsButton != null) saveParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
         if (loadParamsButton != null) loadParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
     }
-    
+
+    private void updateManualTransformControlsVisibility() {
+        if (manualTransformSwitch != null && manualTransformControlsGroup != null) {
+            boolean shouldBeVisible = manualTransformSwitch.isChecked() &&
+                                      (originalBitmap != null && !originalBitmap.isRecycled());
+            manualTransformControlsGroup.setVisibility(shouldBeVisible ? View.VISIBLE : View.GONE);
+        }
+    }
+
     private void saveParametersToFile(Uri uri) {
         if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
         JSONObject paramsJson = createParamsJson();
         if (paramsJson == null) return;
+
         try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(
                 getContentResolver().openOutputStream(uri))) {
             outputStreamWriter.write(paramsJson.toString(4));
@@ -622,7 +665,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             Log.i(TAG, "Parameters saved to URI: " + uri);
         } catch (IOException | JSONException e) {
             Log.e(TAG, "Error writing parameters to URI", e);
-            Toast.makeText(this, "Ошибка сохранения", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Ошибка сохранения параметров", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -630,6 +673,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
         JSONObject paramsJson = createParamsJson();
         if (paramsJson == null) return;
+
         try (FileOutputStream fos = new FileOutputStream(file);
              OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fos)) {
             outputStreamWriter.write(paramsJson.toString(4));
@@ -637,7 +681,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             Log.i(TAG, "Parameters saved to internal file: " + file.getAbsolutePath());
         } catch (IOException | JSONException e) {
             Log.e(TAG, "Error writing parameters to internal file", e);
-            Toast.makeText(this, "Ошибка сохранения (внутр.)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Ошибка сохранения параметров (внутр.)", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -681,7 +725,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             applyParamsFromJson(stringBuilder.toString());
         } catch (IOException e) {
             Log.e(TAG, "Error reading parameters from URI", e);
-            Toast.makeText(this, "Ошибка чтения файла", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Ошибка чтения файла параметров", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -700,7 +744,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             applyParamsFromJson(stringBuilder.toString());
         } catch (IOException e) {
             Log.e(TAG, "Error reading parameters from internal file", e);
-            Toast.makeText(this, "Ошибка чтения файла (внутр.)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Ошибка чтения файла параметров (внутр.)", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -748,15 +792,15 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
             if (isPencilMode) {
                 createProcessedBitmap();
+                updateImageDisplay();
             }
-            updateImageDisplay();
 
             Toast.makeText(this, "Параметры загружены", Toast.LENGTH_SHORT).show();
             Log.i(TAG, "Parameters loaded and applied successfully.");
 
         } catch (JSONException e) {
             Log.e(TAG, "Error parsing JSON from parameters file", e);
-            Toast.makeText(this, "Ошибка разбора JSON", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Ошибка разбора JSON параметров", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -974,30 +1018,25 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     }
 
     private void resetImageMatrix() {
-        Log.d(TAG, "Resetting image matrix for overlayImageView");
-        if (overlayImageView == null) return;
-
+        Log.d(TAG, "Resetting image matrix");
+        if (overlayImageView == null || overlayImageView.getDrawable() == null) {
+            Toast.makeText(this, "Нет изображения для сброса", Toast.LENGTH_SHORT).show();
+            return;
+        }
         matrix.reset();
-
         overlayImageView.post(() -> {
-            if (overlayImageView == null || overlayImageView.getDrawable() == null) {
-                Log.w(TAG, "Cannot reset matrix (post): ImageView or Drawable is null.");
-                return;
-            }
+            if (overlayImageView == null || overlayImageView.getDrawable() == null) return;
             int viewWidth = overlayImageView.getWidth();
             int viewHeight = overlayImageView.getHeight();
             int drawableWidth = overlayImageView.getDrawable().getIntrinsicWidth();
             int drawableHeight = overlayImageView.getDrawable().getIntrinsicHeight();
-
             if (viewWidth <= 0 || viewHeight <= 0 || drawableWidth <= 0 || drawableHeight <= 0) {
-                Log.w(TAG, "Cannot reset matrix (post), invalid dimensions.");
+                Log.w(TAG, "Cannot reset matrix, invalid dimensions.");
                 return;
             }
-
             matrix.reset();
             float scale;
             float dx = 0, dy = 0;
-
             if (drawableWidth * viewHeight > viewWidth * drawableHeight) {
                 scale = (float) viewWidth / (float) drawableWidth;
                 dy = (viewHeight - drawableHeight * scale) * 0.5f;
@@ -1009,11 +1048,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             matrix.postTranslate(dx, dy);
             overlayImageView.setImageMatrix(matrix);
             savedMatrix.set(matrix);
-
             if(isZoomLinked) {
                 updateZoomLinkBaseline();
+                Log.d(TAG, "Image matrix reset. Zoom link baseline updated.");
+            } else {
+                Log.d(TAG, "Image matrix reset.");
             }
-            Log.d(TAG, "Image matrix reset to fit view.");
         });
     }
 

@@ -70,13 +70,16 @@
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,linkZoomSwitch,zoom_slider,transparency_slider,panUpButton,panDownButton,panLeftButton,panRightButton,resetPanButton,rotateLeftButton,rotateRightButton"
+        app:constraint_referenced_ids="
+            load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,
+            saveParamsButton,loadParamsButton,
+            manualTransformSwitch, manualTransformControlsGroup, /* <<< НОВЫЕ ID В ГРУППУ */
+            linkZoomSwitch,zoom_slider,transparency_slider"
         android:visibility="visible" />
 
     <!-- Кнопка Загрузить -->
     <Button
         android:id="@+id/load_image_button"
-        style="?android:attr/buttonBarButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -119,11 +122,9 @@
         app:layout_constraintTop_toTopOf="@id/pencilModeSwitch"
         app:layout_constraintBottom_toBottomOf="@id/pencilModeSwitch"/>
 
-
     <!-- Кнопка Слои -->
      <Button
         android:id="@+id/layerSelectButton"
-        style="?android:attr/buttonBarButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -216,91 +217,135 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
 
-    <!-- Кнопки панорамирования и вращения -->
-    <!-- Расположим их в правой части экрана -->
-
-    <Button
-        android:id="@+id/panUpButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="↑"
-        android:textSize="20sp"
-        android:layout_marginEnd="8dp"
-        app:layout_constraintEnd_toStartOf="@+id/rotateLeftButton"
-        app:layout_constraintBottom_toTopOf="@+id/panLeftButton" />
-
-    <Button
-        android:id="@+id/panLeftButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="←"
-        android:textSize="20sp"
-        app:layout_constraintEnd_toStartOf="@+id/resetPanButton"
-        app:layout_constraintTop_toTopOf="@+id/resetPanButton"
-        app:layout_constraintBottom_toBottomOf="@+id/resetPanButton"/>
-
-    <Button
-        android:id="@+id/resetPanButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="О"
-        android:textSize="20sp"
-        android:layout_marginEnd="8dp"
+    <!-- >>> НОВЫЙ БЛОК: Переключатель ручного редактирования <<< -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/manualTransformSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginBottom="8dp"
-        app:layout_constraintEnd_toStartOf="@+id/panRightButton"
-        app:layout_constraintBottom_toTopOf="@+id/panDownButton"/>
+        android:text="Ред. поз."
+        android:checked="false"
+        android:textColor="@android:color/white"
+        android:shadowColor="@android:color/black"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/linkZoomSwitch"/>
 
-    <Button
-        android:id="@+id/panRightButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="→"
-        android:textSize="20sp"
+    <!-- >>> НОВЫЙ БЛОК: Элементы управления ручным редактированием <<< -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/manualTransformControlsLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone" <!-- Изначально скрыто -->
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/resetPanButton"
-        app:layout_constraintBottom_toBottomOf="@+id/resetPanButton"/>
+        app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch">
 
-    <Button
-        android:id="@+id/panDownButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="↓"
-        android:textSize="20sp"
-        android:layout_marginBottom="64dp"
-        android:layout_marginEnd="8dp"
-        app:layout_constraintEnd_toStartOf="@+id/rotateRightButton"
-        app:layout_constraintTop_toBottomOf="@+id/panRightButton"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        <!-- Горизонтальная цепочка для кнопок перемещения и вращения -->
+        <androidx.constraintlayout.helper.widget.Flow
+            android:id="@+id/transformButtonsFlow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:flow_wrapMode="chain"
+            app:flow_horizontalStyle="packed"
+            app:flow_maxElementsWrap="5"
+            app:constraint_referenced_ids="
+                buttonMoveUp,buttonMoveDown,buttonMoveLeft,buttonMoveRight,
+                buttonRotateCW,buttonRotateCCW,buttonResetTransform"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Кнопки вращения -->
-    <Button
-        android:id="@+id/rotateLeftButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="↺"
-        android:textSize="20sp"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/panUpButton"
-        app:layout_constraintBottom_toBottomOf="@+id/panUpButton"/>
+        <Button
+            android:id="@+id/buttonMoveUp"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="↑" />
 
-    <Button
-        android:id="@+id/rotateRightButton"
-        style="?android:attr/buttonBarButtonStyle"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:text="↻"
-        android:textSize="20sp"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/panDownButton"
-        app:layout_constraintBottom_toBottomOf="@+id/panDownButton"/>
+        <Button
+            android:id="@+id/buttonMoveDown"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="↓" />
+
+        <Button
+            android:id="@+id/buttonMoveLeft"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="←" />
+
+        <Button
+            android:id="@+id/buttonMoveRight"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="→" />
+
+        <Button
+            android:id="@+id/buttonRotateCW"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="↻" />
+
+        <Button
+            android:id="@+id/buttonRotateCCW"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="↺" />
+        
+        <Button
+            android:id="@+id/buttonResetTransform"
+            style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="0" />
+
+        <EditText
+            android:id="@+id/editTextTransformStep"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Шаг (пикс/град)"
+            android:inputType="numberDecimal"
+            android:text="10"
+            android:textColor="@android:color/white"
+            android:textColorHint="@android:color/darker_gray"
+            android:backgroundTint="@android:color/white"
+            android:textSize="14sp"
+            android:imeOptions="actionDone"
+            app:layout_constraintTop_toBottomOf="@id/transformButtonsFlow"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintWidth_percent="0.5"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Группа для управления видимостью блока ручного редактирования (не включаем в controlsGroup) -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/manualTransformControlsGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="manualTransformControlsLayout"
+        android:visibility="gone"/> <!-- Изначально скрыта -->
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
