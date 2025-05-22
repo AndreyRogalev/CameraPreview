@@ -73,9 +73,9 @@
         app:constraint_referenced_ids="
             load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,
             saveParamsButton,loadParamsButton,
-            manualTransformSwitch, manualTransformControlsGroup, /* <<< НОВЫЕ ID В ГРУППУ */
-            linkZoomSwitch,zoom_slider,transparency_slider"
-        android:visibility="visible" />
+            manualTransformSwitch, manualTransformControlsGroup, 
+            linkZoomSwitch,zoom_slider,transparency_slider" 
+        android:visibility="visible" /> <!-- Java-комментарий УДАЛЕН отсюда -->
 
     <!-- Кнопка Загрузить -->
     <Button
@@ -121,6 +121,7 @@
         app:layout_constraintStart_toEndOf="@id/pencilModeSwitch"
         app:layout_constraintTop_toTopOf="@id/pencilModeSwitch"
         app:layout_constraintBottom_toBottomOf="@id/pencilModeSwitch"/>
+
 
     <!-- Кнопка Слои -->
      <Button
@@ -217,7 +218,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
 
-    <!-- >>> НОВЫЙ БЛОК: Переключатель ручного редактирования <<< -->
+    <!-- Переключатель ручного редактирования -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/manualTransformSwitch"
         android:layout_width="wrap_content"
@@ -234,7 +235,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/linkZoomSwitch"/>
 
-    <!-- >>> НОВЫЙ БЛОК: Элементы управления ручным редактированием <<< -->
+    <!-- Элементы управления ручным редактированием -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/manualTransformControlsLayout"
         android:layout_width="0dp"
@@ -242,12 +243,11 @@
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
-        android:visibility="gone" <!-- Изначально скрыто -->
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch">
 
-        <!-- Горизонтальная цепочка для кнопок перемещения и вращения -->
         <androidx.constraintlayout.helper.widget.Flow
             android:id="@+id/transformButtonsFlow"
             android:layout_width="0dp"
@@ -339,13 +339,11 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Группа для управления видимостью блока ручного редактирования (не включаем в controlsGroup) -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/manualTransformControlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="manualTransformControlsLayout"
-        android:visibility="gone"/> <!-- Изначально скрыта -->
-
+        android:visibility="gone"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
