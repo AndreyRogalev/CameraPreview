@@ -85,9 +85,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
     private static final float DEFAULT_MANUAL_TRANSLATE_STEP = 10f;
-    private static final float DEFAULT_MANUAL_ROTATE_STEP = 5f; // Используется, если getTranslateOrRotateStep() вызывается для вращения
+    private static final float DEFAULT_MANUAL_ROTATE_STEP = 5f;
     private static final float DEFAULT_MANUAL_SCALE_UP_FACTOR = 1.1f;
-    private static final float DEFAULT_MANUAL_SCALE_DOWN_FACTOR = 1 / DEFAULT_MANUAL_SCALE_UP_FACTOR; // ~0.909
+    private static final float DEFAULT_MANUAL_SCALE_DOWN_FACTOR = 1 / DEFAULT_MANUAL_SCALE_UP_FACTOR;
 
 
     private PreviewView previewView;
@@ -104,9 +104,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private CheckBox controlsVisibilityCheckbox;
     private CheckBox showLayersWhenControlsHiddenCheckbox;
     private SwitchCompat linkZoomSwitch;
-
     private SwitchCompat manualTransformSwitch;
     private Group manualTransformControlsGroup;
+    private SwitchCompat lockTransformSwitch;
+
     private Button buttonMoveUp, buttonMoveDown, buttonMoveLeft, buttonMoveRight;
     private Button buttonRotateCW, buttonRotateCCW, buttonResetTransform;
     private Button buttonScaleUp, buttonScaleDown, buttonResetScale;
@@ -129,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
     private boolean isPencilMode = false;
     private boolean isGreenMode = false;
+    private boolean isTransformLocked = false;
     private boolean[] layerVisibility;
     private Bitmap originalBitmap = null;
     private Bitmap processedBitmap = null;
@@ -210,9 +212,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         controlsVisibilityCheckbox = findViewById(R.id.controlsVisibilityCheckbox);
         showLayersWhenControlsHiddenCheckbox = findViewById(R.id.showLayersWhenControlsHiddenCheckbox);
         linkZoomSwitch = findViewById(R.id.linkZoomSwitch);
-
         manualTransformSwitch = findViewById(R.id.manualTransformSwitch);
         manualTransformControlsGroup = findViewById(R.id.manualTransformControlsGroup);
+        lockTransformSwitch = findViewById(R.id.lockTransformSwitch);
         
         buttonMoveUp = findViewById(R.id.buttonMoveUp);
         buttonMoveDown = findViewById(R.id.buttonMoveDown);
@@ -232,6 +234,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 greenModeCheckbox == null || layerSelectButton == null ||
                 saveParamsButton == null || loadParamsButton == null ||
                 manualTransformSwitch == null || manualTransformControlsGroup == null ||
+                lockTransformSwitch == null ||
                 buttonMoveUp == null || buttonMoveDown == null || buttonMoveLeft == null || buttonMoveRight == null ||
                 buttonRotateCW == null || buttonRotateCCW == null || buttonResetTransform == null ||
                 buttonScaleUp == null || buttonScaleDown == null || buttonResetScale == null ||
@@ -266,6 +269,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         setupShowLayersWhenControlsHiddenCheckboxListener();
         setupLinkZoomSwitchListener();
         setupManualTransformControlsListeners();
+        setupLockTransformSwitchListener();
 
         previewView.post(this::hideSystemUI);
         overlayImageView.setVisibility(View.GONE);
@@ -274,6 +278,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         linkZoomSwitch.setEnabled(false);
         greenModeCheckbox.setVisibility(View.GONE);
         manualTransformControlsGroup.setVisibility(View.GONE);
+        lockTransformSwitch.setVisibility(View.GONE);
 
         boolean controlsInitiallyVisible = controlsVisibilityCheckbox.isChecked();
         controlsGroup.setVisibility(controlsInitiallyVisible ? View.VISIBLE : View.GONE);
@@ -284,6 +289,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateLayerButtonVisibility();
         updateGreenModeCheckboxVisibility();
         updateManualTransformControlsVisibility();
+        updateLockTransformSwitchVisibility();
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -297,8 +303,10 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     @Override
     public boolean onTouch(View v, MotionEvent event) {
         if (v.getId() != R.id.overlayImageView) return false;
-        if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
-            return false;
+        
+        if (isTransformLocked || (manualTransformSwitch != null && manualTransformSwitch.isChecked())) {
+            Log.v(TAG, "onTouch: Transformations locked by switch.");
+            return true; 
         }
 
         ImageView view = (ImageView) v;
@@ -380,10 +388,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
+            if (isTransformLocked || (manualTransformSwitch != null && manualTransformSwitch.isChecked())) {
+                 Log.v(TAG, "onScale: Transformations locked by switch.");
                 return true;
             }
-            // Если нужно масштабирование через ScaleGestureDetector, когда ручное управление выключено:
+            // Если нужно было бы использовать ScaleGestureDetector для основного масштабирования:
             // float scaleFactor = detector.getScaleFactor();
             // matrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
             // overlayImageView.setImageMatrix(matrix);
@@ -596,6 +605,14 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
+    private void setupLockTransformSwitchListener() {
+        lockTransformSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            isTransformLocked = isChecked;
+            Log.i(TAG, "Transform Lock Switch changed: " + isTransformLocked);
+        });
+    }
+
+
     private float getTranslateOrRotateStep() {
         if (editTextTransformStep == null) return DEFAULT_MANUAL_TRANSLATE_STEP;
         String stepStr = editTextTransformStep.getText().toString();
@@ -616,8 +633,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         }
         String inputStr = editTextTransformStep.getText().toString();
         if (TextUtils.isEmpty(inputStr)) {
-            // Если поле пустое, используем шаг по умолчанию для масштаба, а не для перемещения/вращения
-            editTextTransformStep.setHint("Коэфф. (1.1)"); // Подсказка для пользователя
+            editTextTransformStep.setHint("Коэфф. (1.1)");
             return forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR;
         }
         try {
@@ -630,9 +646,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             }
 
             if (forScalingUp) {
-                return Math.max(1.001f, factor); // Всегда увеличиваем, если >1, иначе берем как есть (если введено >1)
-            } else { // forScalingDown
-                 // Если ввели >1, инвертируем. Если ввели <1 (и >0), используем как есть.
+                return Math.max(1.001f, factor);
+            } else {
                 return (factor > 1.0f) ? 1.0f / factor : Math.min(0.999f, Math.max(0.01f, factor));
             }
         } catch (NumberFormatException e) {
@@ -692,6 +707,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 updateShowLayersCheckboxVisibility();
                 updateLayerButtonVisibility();
                 updateManualTransformControlsVisibility();
+                updateLockTransformSwitchVisibility();
                 updateImageDisplay();
                 overlayImageView.setVisibility(View.VISIBLE);
                 transparencySlider.setVisibility(View.VISIBLE);
@@ -742,11 +758,16 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
             manualTransformSwitch.setChecked(false);
         }
+        if (lockTransformSwitch != null && lockTransformSwitch.isChecked()){
+            isTransformLocked = false;
+            lockTransformSwitch.setChecked(false);
+        }
         updateSaveLoadParamsButtonsVisibility();
         updateGreenModeCheckboxVisibility();
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
         updateManualTransformControlsVisibility();
+        updateLockTransformSwitchVisibility();
     }
 
     private void updateSaveLoadParamsButtonsVisibility() {
@@ -767,6 +788,18 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             manualTransformControlsGroup.setVisibility(imageLoaded && manualTransformSwitch.isChecked() ? View.VISIBLE : View.GONE);
         }
     }
+    
+    private void updateLockTransformSwitchVisibility() {
+        if (lockTransformSwitch != null) {
+            boolean imageLoaded = (originalBitmap != null && !originalBitmap.isRecycled());
+            lockTransformSwitch.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
+            if (!imageLoaded && lockTransformSwitch.isChecked()) {
+                isTransformLocked = false;
+                lockTransformSwitch.setChecked(false);
+            }
+        }
+    }
+
 
     private void saveParametersToFile(Uri uri) {
         if (overlayImageView == null || transparencySlider == null || linkZoomSwitch == null) return;
@@ -818,6 +851,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             }
             paramsJson.put("is_green_mode", isGreenMode);
             paramsJson.put("is_pencil_mode", isPencilMode);
+            paramsJson.put("is_transform_locked", isTransformLocked);
             JSONArray layersVisibilityJson = new JSONArray();
             for(boolean visible : layerVisibility) {
                 layersVisibilityJson.put(visible);
@@ -903,13 +937,19 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
             if (paramsJson.has("is_green_mode")) {
                 isGreenMode = paramsJson.getBoolean("is_green_mode");
-                greenModeCheckbox.setChecked(isGreenMode);
+                if (greenModeCheckbox != null) greenModeCheckbox.setChecked(isGreenMode);
             }
             
             if (paramsJson.has("is_pencil_mode")) {
                 isPencilMode = paramsJson.getBoolean("is_pencil_mode");
-                pencilModeSwitch.setChecked(isPencilMode);
+                if (pencilModeSwitch != null) pencilModeSwitch.setChecked(isPencilMode);
             }
+            
+            if (paramsJson.has("is_transform_locked")) {
+                isTransformLocked = paramsJson.getBoolean("is_transform_locked");
+                if (lockTransformSwitch != null) lockTransformSwitch.setChecked(isTransformLocked);
+            }
+
 
             if (paramsJson.has("layer_visibility_array")) {
                 JSONArray layersVisibilityJson = paramsJson.getJSONArray("layer_visibility_array");
@@ -928,6 +968,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             updateShowLayersCheckboxVisibility();
             updateLayerButtonVisibility();
             updateManualTransformControlsVisibility();
+            updateLockTransformSwitchVisibility();
 
             Toast.makeText(this, "Параметры загружены", Toast.LENGTH_SHORT).show();
             Log.i(TAG, "Parameters loaded and applied successfully.");

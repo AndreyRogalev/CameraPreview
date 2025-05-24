@@ -7,6 +7,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <!-- Просмотр камеры -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -17,6 +18,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:scaleType="fillCenter" />
 
+    <!-- Наложение изображения -->
     <ImageView
         android:id="@+id/overlayImageView"
         android:layout_width="0dp"
@@ -29,6 +31,7 @@
         android:visibility="gone"
         android:contentDescription="@string/overlay_image_description" />
 
+    <!-- Основной чекбокс видимости элементов управления -->
     <CheckBox
         android:id="@+id/controlsVisibilityCheckbox"
         android:layout_width="wrap_content"
@@ -45,6 +48,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Чекбокс для показа кнопки "Слои", когда контролы скрыты -->
     <CheckBox
         android:id="@+id/showLayersWhenControlsHiddenCheckbox"
         android:layout_width="wrap_content"
@@ -61,6 +65,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/controlsVisibilityCheckbox" />
 
+    <!-- Группа для управления видимостью основных контролов -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
@@ -69,9 +74,11 @@
             load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,
             saveParamsButton,loadParamsButton,
             manualTransformSwitch, manualTransformControlsGroup,
+            lockTransformSwitch, <!-- <<< ДОБАВЛЕН ID НОВОГО ПЕРЕКЛЮЧАТЕЛЯ В ГРУППУ -->
             linkZoomSwitch,zoom_slider,transparency_slider"
         android:visibility="visible" />
 
+    <!-- Кнопка Загрузить -->
     <Button
         android:id="@+id/load_image_button"
         android:layout_width="wrap_content"
@@ -82,6 +89,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Переключатель Карандаш -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/pencilModeSwitch"
         android:layout_width="wrap_content"
@@ -97,6 +105,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/load_image_button" />
 
+    <!-- ЧЕКБОКС ДЛЯ ЗЕЛЕНОГО РЕЖИМА -->
     <CheckBox
         android:id="@+id/greenModeCheckbox"
         android:layout_width="wrap_content"
@@ -114,6 +123,8 @@
         app:layout_constraintTop_toTopOf="@id/pencilModeSwitch"
         app:layout_constraintBottom_toBottomOf="@id/pencilModeSwitch"/>
 
+
+    <!-- Кнопка Слои -->
      <Button
         android:id="@+id/layerSelectButton"
         android:layout_width="wrap_content"
@@ -125,6 +136,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/pencilModeSwitch"/>
 
+    <!-- Кнопка Сохранить Параметры -->
     <Button
         android:id="@+id/saveParamsButton"
         style="?android:attr/buttonBarButtonStyle"
@@ -140,6 +152,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/layerSelectButton"/>
 
+    <!-- Кнопка Загрузить Параметры -->
     <Button
         android:id="@+id/loadParamsButton"
         style="?android:attr/buttonBarButtonStyle"
@@ -155,6 +168,7 @@
         app:layout_constraintTop_toTopOf="@id/saveParamsButton"
         app:layout_constraintBottom_toBottomOf="@id/saveParamsButton"/>
 
+    <!-- Слайдер прозрачности (внизу экрана) -->
     <com.google.android.material.slider.Slider
         android:id="@+id/transparency_slider"
         android:layout_width="0dp"
@@ -172,6 +186,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Слайдер зума (над слайдером прозрачности) -->
     <com.google.android.material.slider.Slider
         android:id="@+id/zoom_slider"
         android:layout_width="0dp"
@@ -187,6 +202,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Переключатель Связать зум (над слайдером зума) -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/linkZoomSwitch"
         android:layout_width="wrap_content"
@@ -203,6 +219,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider" />
 
+    <!-- Переключатель ручного редактирования (над блоком ручного управления) -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/manualTransformSwitch"
         android:layout_width="wrap_content"
@@ -219,6 +236,26 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider"/>
 
+    <!-- >>> НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ БЛОКИРОВКИ ТРАНСФОРМАЦИЙ ПАЛЬЦАМИ <<< -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/lockTransformSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:text="Блок. изм."
+        android:checked="false"
+        android:textColor="@android:color/white"
+        android:shadowColor="@android:color/black"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="1"
+        android:visibility="gone" <!-- Изначально скрыт, пока не загружено изображение -->
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch"/>
+
+
+    <!-- Элементы управления ручным редактированием -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/manualTransformControlsLayout"
         android:layout_width="wrap_content"
@@ -229,8 +266,9 @@
         android:background="#80000000"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch">
+        app:layout_constraintBottom_toTopOf="@id/lockTransformSwitch"> <!-- Изменена привязка -->
 
+        <!-- Строка 1: Кнопки перемещения -->
         <Button
             android:id="@+id/buttonMoveLeft"
             style="?android:attr/buttonBarButtonStyle"
@@ -275,6 +313,8 @@
             app:layout_constraintTop_toTopOf="@id/buttonMoveUp"
             android:layout_marginStart="4dp"/>
 
+
+        <!-- Строка 2: Кнопки вращения и сброс -->
         <Button
             android:id="@+id/buttonRotateCCW"
             style="?android:attr/buttonBarButtonStyle"
@@ -308,6 +348,7 @@
             app:layout_constraintTop_toTopOf="@id/buttonResetTransform"
             android:layout_marginStart="4dp"/>
 
+        <!-- СТРОКА 3: Кнопки масштабирования -->
         <Button
             android:id="@+id/buttonScaleDown"
             style="?android:attr/buttonBarButtonStyle"
@@ -331,7 +372,6 @@
             app:layout_constraintStart_toEndOf="@id/buttonScaleDown"
             app:layout_constraintTop_toTopOf="@id/buttonScaleDown"
             android:layout_marginStart="4dp"/>
-
         <Button
             android:id="@+id/buttonResetScale"
             style="?android:attr/buttonBarButtonStyle"
@@ -344,6 +384,8 @@
             app:layout_constraintTop_toTopOf="@id/buttonScaleUp"
             android:layout_marginStart="4dp"/>
 
+
+        <!-- Строка 4: Поле ввода шага -->
         <EditText
             android:id="@+id/editTextTransformStep"
             android:layout_width="0dp"
