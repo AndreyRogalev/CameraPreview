@@ -70,12 +70,7 @@
         android:id="@+id/controlsGroup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="
-            load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,
-            saveParamsButton,loadParamsButton,
-            manualTransformSwitch, manualTransformControlsGroup,
-            lockTransformSwitch, <!-- <<< ДОБАВЛЕН ID НОВОГО ПЕРЕКЛЮЧАТЕЛЯ В ГРУППУ -->
-            linkZoomSwitch,zoom_slider,transparency_slider"
+        app:constraint_referenced_ids="load_image_button,pencilModeSwitch,greenModeCheckbox,layerSelectButton,saveParamsButton,loadParamsButton,manualTransformSwitch,manualTransformControlsGroup,lockTransformSwitch,linkZoomSwitch,zoom_slider,transparency_slider"
         android:visibility="visible" />
 
     <!-- Кнопка Загрузить -->
@@ -236,7 +231,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/zoom_slider"/>
 
-    <!-- >>> НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ БЛОКИРОВКИ ТРАНСФОРМАЦИЙ ПАЛЬЦАМИ <<< -->
+    <!-- НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ БЛОКИРОВКИ ТРАНСФОРМАЦИЙ ПАЛЬЦАМИ -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/lockTransformSwitch"
         android:layout_width="wrap_content"
@@ -250,7 +245,7 @@
         android:shadowDx="1"
         android:shadowDy="1"
         android:shadowRadius="1"
-        android:visibility="gone" <!-- Изначально скрыт, пока не загружено изображение -->
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/manualTransformSwitch"/>
 
@@ -266,7 +261,7 @@
         android:background="#80000000"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/lockTransformSwitch"> <!-- Изменена привязка -->
+        app:layout_constraintBottom_toTopOf="@id/lockTransformSwitch">
 
         <!-- Строка 1: Кнопки перемещения -->
         <Button
