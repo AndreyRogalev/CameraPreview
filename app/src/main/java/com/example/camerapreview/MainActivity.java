@@ -17,7 +17,7 @@ import android.graphics.PointF;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.InputType; // Добавлен, если не было
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -46,7 +46,7 @@ import androidx.camera.core.Preview;
 import androidx.camera.core.ZoomState;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
-import androidx.constraintlayout.widget.ConstraintLayout; // Добавлен, если был в вашем коде для findViewById
+// import androidx.constraintlayout.widget.ConstraintLayout; // Не используется напрямую, если поиск через findViewById Activity
 import androidx.constraintlayout.widget.Group;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LiveData;
@@ -85,9 +85,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private static final int DRAG = 1;
     private static final int ZOOM = 2;
     private static final float DEFAULT_MANUAL_TRANSLATE_STEP = 10f;
-    private static final float DEFAULT_MANUAL_ROTATE_STEP = 5f;
-    private static final float DEFAULT_MANUAL_SCALE_FACTOR_UP = 1.1f;
-    private static final float DEFAULT_MANUAL_SCALE_FACTOR_DOWN = 1 / DEFAULT_MANUAL_SCALE_FACTOR_UP;
+    private static final float DEFAULT_MANUAL_ROTATE_STEP = 5f; // Используется, если getTranslateOrRotateStep() вызывается для вращения
+    private static final float DEFAULT_MANUAL_SCALE_UP_FACTOR = 1.1f;
+    private static final float DEFAULT_MANUAL_SCALE_DOWN_FACTOR = 1 / DEFAULT_MANUAL_SCALE_UP_FACTOR; // ~0.909
 
 
     private PreviewView previewView;
@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private Group manualTransformControlsGroup;
     private Button buttonMoveUp, buttonMoveDown, buttonMoveLeft, buttonMoveRight;
     private Button buttonRotateCW, buttonRotateCCW, buttonResetTransform;
-    private Button buttonScaleUp, buttonScaleDown, buttonResetScale; // <<< НОВЫЕ КНОПКИ
+    private Button buttonScaleUp, buttonScaleDown, buttonResetScale;
     private EditText editTextTransformStep;
 
 
@@ -213,41 +213,18 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
         manualTransformSwitch = findViewById(R.id.manualTransformSwitch);
         manualTransformControlsGroup = findViewById(R.id.manualTransformControlsGroup);
-        // Находим View из manualTransformControlsLayout
-        // Если manualTransformControlsLayout является корневым элементом другого XML,
-        // то его нужно "раздуть" (inflate), а затем искать элементы в нем.
-        // Если он просто ConstraintLayout внутри activity_main.xml, то так:
-        View manualControlsLayoutView = findViewById(R.id.manualTransformControlsLayout); // Может быть null, если группа скрыта?
-
-        if (manualControlsLayoutView != null) { // Лучше искать внутри раздутого view, если это отдельный layout
-            buttonMoveUp = manualControlsLayoutView.findViewById(R.id.buttonMoveUp);
-            buttonMoveDown = manualControlsLayoutView.findViewById(R.id.buttonMoveDown);
-            buttonMoveLeft = manualControlsLayoutView.findViewById(R.id.buttonMoveLeft);
-            buttonMoveRight = manualControlsLayoutView.findViewById(R.id.buttonMoveRight);
-            buttonRotateCW = manualControlsLayoutView.findViewById(R.id.buttonRotateCW);
-            buttonRotateCCW = manualControlsLayoutView.findViewById(R.id.buttonRotateCCW);
-            buttonResetTransform = manualControlsLayoutView.findViewById(R.id.buttonResetTransform);
-            buttonScaleUp = manualControlsLayoutView.findViewById(R.id.buttonScaleUp);
-            buttonScaleDown = manualControlsLayoutView.findViewById(R.id.buttonScaleDown);
-            buttonResetScale = manualControlsLayoutView.findViewById(R.id.buttonResetScale);
-            editTextTransformStep = manualControlsLayoutView.findViewById(R.id.editTextTransformStep);
-        } else {
-            // Альтернативный поиск, если manualTransformControlsLayout не найден как прямой потомок
-            // Это может произойти, если он является частью другого include или ViewGroup.
-            // В вашем случае он прямой потомок ConstraintLayout, так что findViewById(R.id.имя_элемента) должно работать.
-            // Здесь я просто оставлю прямой поиск, т.к. XML предполагает, что они доступны из корневого макета.
-            buttonMoveUp = findViewById(R.id.buttonMoveUp);
-            buttonMoveDown = findViewById(R.id.buttonMoveDown);
-            buttonMoveLeft = findViewById(R.id.buttonMoveLeft);
-            buttonMoveRight = findViewById(R.id.buttonMoveRight);
-            buttonRotateCW = findViewById(R.id.buttonRotateCW);
-            buttonRotateCCW = findViewById(R.id.buttonRotateCCW);
-            buttonResetTransform = findViewById(R.id.buttonResetTransform);
-            buttonScaleUp = findViewById(R.id.buttonScaleUp);
-            buttonScaleDown = findViewById(R.id.buttonScaleDown);
-            buttonResetScale = findViewById(R.id.buttonResetScale);
-            editTextTransformStep = findViewById(R.id.editTextTransformStep);
-        }
+        
+        buttonMoveUp = findViewById(R.id.buttonMoveUp);
+        buttonMoveDown = findViewById(R.id.buttonMoveDown);
+        buttonMoveLeft = findViewById(R.id.buttonMoveLeft);
+        buttonMoveRight = findViewById(R.id.buttonMoveRight);
+        buttonRotateCW = findViewById(R.id.buttonRotateCW);
+        buttonRotateCCW = findViewById(R.id.buttonRotateCCW);
+        buttonResetTransform = findViewById(R.id.buttonResetTransform);
+        buttonScaleUp = findViewById(R.id.buttonScaleUp);
+        buttonScaleDown = findViewById(R.id.buttonScaleDown);
+        buttonResetScale = findViewById(R.id.buttonResetScale);
+        editTextTransformStep = findViewById(R.id.editTextTransformStep);
 
 
         if (previewView == null || zoomSlider == null || loadImageButton == null ||
@@ -257,7 +234,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 manualTransformSwitch == null || manualTransformControlsGroup == null ||
                 buttonMoveUp == null || buttonMoveDown == null || buttonMoveLeft == null || buttonMoveRight == null ||
                 buttonRotateCW == null || buttonRotateCCW == null || buttonResetTransform == null ||
-                buttonScaleUp == null || buttonScaleDown == null || buttonResetScale == null || // <<< ПРОВЕРКА
+                buttonScaleUp == null || buttonScaleDown == null || buttonResetScale == null ||
                 editTextTransformStep == null ||
                 controlsGroup == null || controlsVisibilityCheckbox == null ||
                 showLayersWhenControlsHiddenCheckbox == null ||
@@ -306,7 +283,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         updateShowLayersCheckboxVisibility();
         updateLayerButtonVisibility();
         updateGreenModeCheckboxVisibility();
-        updateManualTransformControlsVisibility(); // Был updateManualTransformSwitchAndGroupVisibility
+        updateManualTransformControlsVisibility();
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -320,9 +297,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     @Override
     public boolean onTouch(View v, MotionEvent event) {
         if (v.getId() != R.id.overlayImageView) return false;
-        // Блокируем ручное управление пальцами, если включен режим "Ред. поз."
         if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
-            return false; // Событие не обработано, чтобы не мешать кнопкам
+            return false;
         }
 
         ImageView view = (ImageView) v;
@@ -404,14 +380,15 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            // Блокируем, если включен режим "Ред. поз."
             if (manualTransformSwitch != null && manualTransformSwitch.isChecked()) {
                 return true;
             }
-            // Логика масштабирования через ScaleGestureDetector (альтернатива ACTION_MOVE)
+            // Если нужно масштабирование через ScaleGestureDetector, когда ручное управление выключено:
             // float scaleFactor = detector.getScaleFactor();
             // matrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
             // overlayImageView.setImageMatrix(matrix);
+            // savedMatrix.set(matrix);
+            // if (isZoomLinked) updateZoomLinkBaseline();
             return true;
         }
     }
@@ -525,10 +502,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             controlsVisibilityCheckbox.setText(isChecked ? getString(R.string.controls_label) : "");
             updateShowLayersCheckboxVisibility();
             updateLayerButtonVisibility();
-            // Если основные контролы скрываются, выключаем и ручное управление
             if (!isChecked && manualTransformSwitch.isChecked()) {
                 manualTransformSwitch.setChecked(false);
-                // updateManualTransformControlsVisibility() будет вызван из листенера manualTransformSwitch
             }
         });
     }
@@ -556,8 +531,15 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             Log.d(TAG, "Manual Transform Switch changed: " + isChecked);
             updateManualTransformControlsVisibility();
             if (isChecked && (overlayImageView == null || overlayImageView.getDrawable() == null)) {
-                Toast.makeText(this, "Сначала загрузите изображение", Toast.LENGTH_SHORT).show();
-                manualTransformSwitch.setChecked(false); // Сбрасываем, если нет изображения
+                Toast.makeText(this, "Загрузите изображение для редактирования позиции", Toast.LENGTH_SHORT).show();
+                manualTransformSwitch.setChecked(false);
+            }
+            if (!isChecked) {
+                editTextTransformStep.clearFocus();
+                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.hideSoftInputFromWindow(editTextTransformStep.getWindowToken(), 0);
+                }
             }
         });
 
@@ -574,16 +556,23 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             return false;
         });
 
-        buttonMoveUp.setOnClickListener(v -> applyManualTransform(0, -getTransformStepValue(), 0, 1f));
-        buttonMoveDown.setOnClickListener(v -> applyManualTransform(0, getTransformStepValue(), 0, 1f));
-        buttonMoveLeft.setOnClickListener(v -> applyManualTransform(-getTransformStepValue(), 0, 0, 1f));
-        buttonMoveRight.setOnClickListener(v -> applyManualTransform(getTransformStepValue(), 0, 0, 1f));
+        buttonMoveUp.setOnClickListener(v -> applyManualTransform(0, -getTranslateOrRotateStep(), 0, 1f));
+        buttonMoveDown.setOnClickListener(v -> applyManualTransform(0, getTranslateOrRotateStep(), 0, 1f));
+        buttonMoveLeft.setOnClickListener(v -> applyManualTransform(-getTranslateOrRotateStep(), 0, 0, 1f));
+        buttonMoveRight.setOnClickListener(v -> applyManualTransform(getTranslateOrRotateStep(), 0, 0, 1f));
 
-        buttonRotateCW.setOnClickListener(v -> applyManualTransform(0, 0, getTransformStepValue(), 1f));
-        buttonRotateCCW.setOnClickListener(v -> applyManualTransform(0, 0, -getTransformStepValue(), 1f));
+        buttonRotateCW.setOnClickListener(v -> applyManualTransform(0, 0, getTranslateOrRotateStep(), 1f));
+        buttonRotateCCW.setOnClickListener(v -> applyManualTransform(0, 0, -getTranslateOrRotateStep(), 1f));
 
-        buttonScaleUp.setOnClickListener(v -> applyManualTransform(0, 0, 0, DEFAULT_MANUAL_SCALE_FACTOR_UP));
-        buttonScaleDown.setOnClickListener(v -> applyManualTransform(0, 0, 0, DEFAULT_MANUAL_SCALE_FACTOR_DOWN));
+        buttonScaleUp.setOnClickListener(v -> {
+            float scaleFactor = getScaleFactorFromInput(true);
+            applyManualTransform(0, 0, 0, scaleFactor);
+        });
+
+        buttonScaleDown.setOnClickListener(v -> {
+            float scaleFactor = getScaleFactorFromInput(false);
+            applyManualTransform(0, 0, 0, scaleFactor);
+        });
 
         buttonResetTransform.setOnClickListener(v -> {
             if (overlayImageView != null && originalBitmap != null) {
@@ -594,21 +583,12 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
 
         buttonResetScale.setOnClickListener(v -> {
             if (overlayImageView != null && overlayImageView.getDrawable() != null && originalBitmap != null) {
-                // Сбрасываем только масштаб, сохраняя текущее положение и вращение.
-                // Для этого нужно узнать текущий масштаб и применить обратный.
-                // Центр масштабирования - центр изображения.
-                float[] values = new float[9];
-                matrix.getValues(values);
-                // float currentScaleX = values[Matrix.MSCALE_X]; // Это не всегда корректно при вращении
-                // float currentScaleY = values[Matrix.MSCALE_Y];
-                float currentScale = getMatrixScale(matrix); // Используем наш метод
-
-                if (Math.abs(currentScale) > 0.001f) { // Избегаем деления на ноль
+                float currentScale = getMatrixScale(matrix);
+                if (Math.abs(currentScale) > 0.001f) {
                     float scaleToGetToOne = 1.0f / currentScale;
                     applyManualTransform(0,0,0, scaleToGetToOne);
                     Toast.makeText(this, "Масштаб сброшен к 1:1", Toast.LENGTH_SHORT).show();
                 } else {
-                     // Если текущий масштаб близок к нулю, просто сбрасываем все
                     resetImageMatrix();
                     Toast.makeText(this, "Масштаб и позиция сброшены (текущий масштаб был 0)", Toast.LENGTH_SHORT).show();
                 }
@@ -616,19 +596,53 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         });
     }
 
-    private float getTransformStepValue() { // Переименован из getTransformStep
+    private float getTranslateOrRotateStep() {
         if (editTextTransformStep == null) return DEFAULT_MANUAL_TRANSLATE_STEP;
         String stepStr = editTextTransformStep.getText().toString();
         if (TextUtils.isEmpty(stepStr)) return DEFAULT_MANUAL_TRANSLATE_STEP;
         try {
             float step = Float.parseFloat(stepStr);
-            return Math.max(0.1f, step); // Минимальный шаг 0.1
+            return Math.max(0.1f, step);
         } catch (NumberFormatException e) {
             Log.w(TAG, "Invalid transform step value: " + stepStr + ", using default.");
-            editTextTransformStep.setText(String.valueOf(DEFAULT_MANUAL_TRANSLATE_STEP)); // Возвращаем дефолт в поле
+            editTextTransformStep.setText(String.valueOf(DEFAULT_MANUAL_TRANSLATE_STEP));
             return DEFAULT_MANUAL_TRANSLATE_STEP;
         }
     }
+
+    private float getScaleFactorFromInput(boolean forScalingUp) {
+        if (editTextTransformStep == null) {
+            return forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR;
+        }
+        String inputStr = editTextTransformStep.getText().toString();
+        if (TextUtils.isEmpty(inputStr)) {
+            // Если поле пустое, используем шаг по умолчанию для масштаба, а не для перемещения/вращения
+            editTextTransformStep.setHint("Коэфф. (1.1)"); // Подсказка для пользователя
+            return forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR;
+        }
+        try {
+            float factor = Float.parseFloat(inputStr);
+            if (factor <= 0) {
+                Log.w(TAG, "Scale factor must be > 0. Using default.");
+                editTextTransformStep.setText(String.valueOf(forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR));
+                editTextTransformStep.setHint("Коэфф. (1.1)");
+                return forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR;
+            }
+
+            if (forScalingUp) {
+                return Math.max(1.001f, factor); // Всегда увеличиваем, если >1, иначе берем как есть (если введено >1)
+            } else { // forScalingDown
+                 // Если ввели >1, инвертируем. Если ввели <1 (и >0), используем как есть.
+                return (factor > 1.0f) ? 1.0f / factor : Math.min(0.999f, Math.max(0.01f, factor));
+            }
+        } catch (NumberFormatException e) {
+            Log.w(TAG, "Invalid scale factor input: " + inputStr + ", using default.");
+            editTextTransformStep.setText(String.valueOf(forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR));
+            editTextTransformStep.setHint("Коэфф. (1.1)");
+            return forScalingUp ? DEFAULT_MANUAL_SCALE_UP_FACTOR : DEFAULT_MANUAL_SCALE_DOWN_FACTOR;
+        }
+    }
+
 
     private void applyManualTransform(float dx, float dy, float degrees, float scaleFactor) {
         if (overlayImageView == null || overlayImageView.getDrawable() == null) {
@@ -643,7 +657,11 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
             matrix.postRotate(degrees, overlayImageView.getWidth() / 2f, overlayImageView.getHeight() / 2f);
         }
         if (scaleFactor != 1f) {
-            matrix.postScale(scaleFactor, scaleFactor, overlayImageView.getWidth() / 2f, overlayImageView.getHeight() / 2f);
+            if (scaleFactor <= 0.001f) {
+                Log.w(TAG, "Attempted to scale by an invalid factor: " + scaleFactor + ". Ignoring.");
+            } else {
+                matrix.postScale(scaleFactor, scaleFactor, overlayImageView.getWidth() / 2f, overlayImageView.getHeight() / 2f);
+            }
         }
 
         overlayImageView.setImageMatrix(matrix);
@@ -737,7 +755,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         if (loadParamsButton != null) loadParamsButton.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
     }
 
-    private void updateManualTransformControlsVisibility() { // Переименован из updateManualTransformSwitchAndGroupVisibility
+    private void updateManualTransformControlsVisibility() {
         boolean imageLoaded = (originalBitmap != null && !originalBitmap.isRecycled());
         if (manualTransformSwitch != null) {
             manualTransformSwitch.setVisibility(imageLoaded ? View.VISIBLE : View.GONE);
